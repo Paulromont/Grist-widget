@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fiche entité — widget Grist</title>
+
+<!-- API Grist. Pour le compte perso (cloud), cette URL convient.
+     Sur votre instance INTERNE, remplacez-la par :
+     https://VOTRE-INSTANCE/grist-plugin-api.js -->
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+
+<style>
+  :root{
+    --bleu:#1F4E79; --bleu-clair:#E6F1FB;
+    --orange:#FAEEDA; --orange-txt:#854F0B;
+    --vert:#EAF3DE; --vert-txt:#3B6D11;
+    --gris:#F4F5F7; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       color:var(--txt); margin:0; padding:16px; background:#fff; font-size:14px;}
+  h2.section{font-size:14px; font-weight:600; color:#fff; background:var(--bleu);
+             padding:6px 12px; border-radius:6px; margin:22px 0 12px;}
+  .grille{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px 18px;}
+  .champ{display:flex; flex-direction:column; gap:4px;}
+  .champ.large{grid-column:1 / -1;}
+  label{font-size:12px; color:var(--muet);}
+  input,select,textarea{font:inherit; padding:6px 8px; border:1px solid var(--bord);
+     border-radius:6px; background:#fff; color:var(--txt); width:100%;}
+  textarea{min-height:60px; resize:vertical;}
+  select[multiple]{min-height:96px;}
+  .barre{position:sticky; top:0; z-index:5; background:#fff; padding:8px 0 12px;
+     border-bottom:1px solid var(--bord); display:flex; align-items:center; gap:12px;}
+  .titre-fiche{font-size:16px; font-weight:600; flex:1;}
+  button{font:inherit; cursor:pointer; border:none; border-radius:6px; padding:8px 16px;
+     background:var(--bleu); color:#fff; font-weight:500;}
+  button.sec{background:var(--gris); color:var(--txt); border:1px solid var(--bord);}
+  button:disabled{opacity:.5; cursor:default;}
+  .etat{font-size:13px; color:var(--muet);}
+  .etat.ok{color:var(--vert-txt);} .etat.err{color:#b42318;}
+  .controle{border:1px solid var(--bord); border-radius:8px; padding:12px; margin-bottom:12px; background:var(--gris);}
+  .controle .grille{background:transparent;}
+  .ctrl-tete{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .ctrl-tete b{font-size:13px;}
+  .vide{color:var(--muet); font-style:italic; padding:8px 0;}
+  .lien{color:var(--bleu); cursor:pointer; font-size:13px; background:none; padding:2px 6px;}
+</style>
+</head>
+<body>
+
+<div class="barre">
+  <span class="titre-fiche" id="titre">Aucune fiche sélectionnée</span>
+  <span class="etat" id="etat"></span>
+  <button class="sec" id="btnAnnuler" disabled>Annuler</button>
+  <button id="btnEnregistrer" disabled>Enregistrer</button>
+</div>
+
+<div id="contenu"><p class="vide">Sélectionne une personne dans la vue reliée pour afficher sa fiche.</p></div>
+
+<script>
+/* =========================================================================
+   CONFIGURATION — adapte ici si un identifiant de colonne diffère chez toi.
+   Chaque champ : { id: "id_colonne_Grist", label: "Libellé affiché", type: ... }
+   type : "text" | "textarea" | "choice" | "choicelist" | "date"
+   ========================================================================= */
+const SECTIONS = [
+  { titre:"Présentation de l'entité", champs:[
+    {id:"Etat_du_dossier",  label:"État du dossier", type:"choice"},
+    {id:"Affiliation",      label:"Affiliation", type:"choice"},
+    {id:"Mouvance",         label:"Mouvance", type:"choice"},
+    {id:"Pseudonyme",       label:"Pseudonyme", type:"text"},
+    {id:"Objectif",         label:"Objectif d'intérêt local / national", type:"choice"},
+    {id:"Departement",      label:"Département", type:"choice"},
+    {id:"Ville",            label:"Ville", type:"text"},
+    {id:"Autres_adresses",  label:"Autres adresses de l'entité", type:"text"},
+    {id:"Statut_juridique", label:"Statut juridique", type:"choice"},
+    {id:"Date_creation",    label:"Date de création de la structure", type:"date"},
+    {id:"Numero_RNA",       label:"Numéro RNA", type:"text"},
+    {id:"Numero_SIRET",     label:"Numéro SIRET", type:"text"},
+  ]},
+  { titre:"Domaine d'activité", champs:[
+    {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne", type:"choice"},
+    {id:"Domaine_declare_1", label:"Domaines d'activités déclarés", type:"choicelist"},
+    {id:"Domaine_reel_2",    label:"Domaines d'activités réels", type:"choicelist"},
+  ]},
+  { titre:"Signalement d'origine", champs:[
+    {id:"Date_signalement",       label:"Date du signalement d'origine", type:"date"},
+    {id:"Service_signalant",      label:"Service signalant", type:"choice"},
+    {id:"Contenu_signalement",    label:"Contenu du signalement", type:"textarea", large:true},
+    {id:"Commentaire_signalement",label:"Commentaire", type:"textarea", large:true},
+  ]},
+  { titre:"Éléments de contexte", champs:[
+    {id:"Dirigeants",          label:"Dirigeants", type:"textarea"},
+    {id:"Personnels_benevoles",label:"Personnels bénévoles", type:"textarea"},
+    {id:"Personnes_liees_txt", label:"Personnes morales et/ou physiques liées", type:"textarea"},
+    {id:"Fonctions",           label:"Fonctions (noms, nature des liens, suivi en CLIR...)", type:"textarea"},
+    {id:"Points_vigilance",    label:"Points de vigilance", type:"textarea"},
+    {id:"Projet_controle",     label:"Projet de contrôle", type:"textarea"},
+    {id:"Dates_passage_CLIR",  label:"Dates de passage en CLIR", type:"text"},
+    {id:"Champs_libre",        label:"Champs libre (autres éléments de contexte)", type:"textarea", large:true},
+  ]},
+];
+
+// Table des contrôles reliée. refCol = colonne Référence qui pointe vers PM.
+const CONTROLES = {
+  table:"Controles", refCol:"PM",
+  typesTable:"Types_controle", typesLibelle:"Libelle", typesCategorie:"Categorie",
+  champs:[
+    {id:"Categorie",           label:"Catégorie de contrôle", type:"choice"},
+    {id:"Type_controle",       label:"Type de contrôle", type:"reftype"}, // dépend de Categorie
+    {id:"Date_declenchement",  label:"Date de déclenchement", type:"date"},
+    {id:"Date_cloture",        label:"Date de clôture", type:"date"},
+    {id:"Service_menant",      label:"Service menant", type:"choice"},
+    {id:"Service_partenaire_1",label:"Services partenaires", type:"choicelist"},
+    {id:"Commentaires",        label:"Commentaires", type:"textarea", large:true},
+    {id:"Precision",           label:"Précision (pour « Autre »)", type:"textarea", large:true},
+  ]
+};
+
+/* ========================================================================= */
+
+let recordActuel = null;      // enregistrement PM sélectionné
+let choix = {};               // choix[table][colId] = [valeurs...]
+let typesRows = [];           // lignes du référentiel Types de contrôle
+let controlesActuels = [];    // contrôles reliés à l'entité courante
+let modifie = false;
+
+const el = id => document.getElementById(id);
+const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// -- Conversions dates (Grist stocke des secondes depuis epoch) --
+function dateVersInput(v){
+  if(v==null||v==="") return "";
+  const d = new Date((typeof v==="number"? v : Date.parse(v)/1000)*1000);
+  if(isNaN(d)) return "";
+  return d.toISOString().slice(0,10);
+}
+function inputVersDate(s){
+  if(!s) return null;
+  const [y,m,d] = s.split("-").map(Number);
+  return Date.UTC(y, m-1, d)/1000; // secondes
+}
+// -- ChoiceList : décoder / encoder --
+function listeVersTab(v){
+  if(Array.isArray(v)) return v[0]==="L" ? v.slice(1) : v;
+  return v ? [v] : [];
+}
+function tabVersListe(t){ return ["L", ...t]; }
+
+// -- Récupère les choix d'une colonne (liste déroulante) depuis les métadonnées --
+async function chargerChoix(){
+  const [tables, cols] = await Promise.all([
+    grist.docApi.fetchTable("_grist_Tables"),
+    grist.docApi.fetchTable("_grist_Tables_column"),
+  ]);
+  const refVersId = {};
+  tables.id.forEach((rid,i)=>{ refVersId[rid] = tables.tableId[i]; });
+  choix = {};
+  cols.id.forEach((_,i)=>{
+    const t = refVersId[cols.parentId[i]];
+    const colId = cols.colId[i];
+    let opts=[];
+    try{ const wo = JSON.parse(cols.widgetOptions[i]||"{}"); opts = wo.choices||[]; }catch(e){}
+    if(t){ (choix[t] = choix[t]||{})[colId] = opts; }
+  });
+}
+
+// -- Récupère le référentiel des types de contrôle --
+async function chargerTypes(){
+  const t = await grist.docApi.fetchTable(CONTROLES.typesTable);
+  typesRows = t.id.map((id,i)=>({
+    id, libelle:t[CONTROLES.typesLibelle][i], categorie:t[CONTROLES.typesCategorie][i]
+  }));
+}
+
+// -- Récupère les contrôles reliés à l'entité courante --
+async function chargerControles(pmId){
+  const t = await grist.docApi.fetchTable(CONTROLES.table);
+  controlesActuels = t.id.map((id,i)=>{
+    const o={id}; Object.keys(t).forEach(c=>{ if(c!=="id") o[c]=t[c][i]; }); return o;
+  }).filter(r => r[CONTROLES.refCol]===pmId);
+}
+
+// -- Fabrique un champ de saisie --
+function champHTML(champ, valeur, prefix, ctrlCat){
+  const nom = prefix + champ.id;
+  const tables = choix; // raccourci
+  if(champ.type==="text")
+    return `<input id="${nom}" value="${esc(valeur||"")}">`;
+  if(champ.type==="textarea")
+    return `<textarea id="${nom}">${esc(valeur||"")}</textarea>`;
+  if(champ.type==="date")
+    return `<input type="date" id="${nom}" value="${dateVersInput(valeur)}">`;
+  if(champ.type==="choice"){
+    const table = prefix.startsWith("ctrl") ? CONTROLES.table : "PM";
+    const opts = (choix[table]&&choix[table][champ.id])||[];
+    return `<select id="${nom}"><option value=""></option>`+
+      opts.map(o=>`<option ${o===valeur?"selected":""} value="${esc(o)}">${esc(o)}</option>`).join("")+
+      `</select>`;
+  }
+  if(champ.type==="choicelist"){
+    const table = prefix.startsWith("ctrl") ? CONTROLES.table : "PM";
+    const opts = (choix[table]&&choix[table][champ.id])||[];
+    const sel = listeVersTab(valeur);
+    return `<select id="${nom}" multiple>`+
+      opts.map(o=>`<option ${sel.includes(o)?"selected":""} value="${esc(o)}">${esc(o)}</option>`).join("")+
+      `</select>`;
+  }
+  if(champ.type==="reftype"){
+    // liste filtrée par la catégorie du contrôle
+    const dispo = typesRows.filter(r=>!ctrlCat || r.categorie===ctrlCat);
+    return `<select id="${nom}"><option value=""></option>`+
+      dispo.map(r=>`<option ${r.id===valeur?"selected":""} value="${r.id}">${esc(r.libelle)}</option>`).join("")+
+      `</select>`;
+  }
+  return "";
+}
+
+// -- Lit la valeur d'un champ de saisie pour l'enregistrement --
+function lireChamp(champ, prefix){
+  const n = document.getElementById(prefix+champ.id);
+  if(!n) return undefined;
+  if(champ.type==="date")       return inputVersDate(n.value);
+  if(champ.type==="reftype")    return n.value? Number(n.value) : 0;
+  if(champ.type==="choicelist") return tabVersListe([...n.selectedOptions].map(o=>o.value));
+  return n.value;
+}
+
+// -- Rendu complet de la fiche --
+function rendre(){
+  if(!recordActuel){ el("contenu").innerHTML = `<p class="vide">Aucune fiche sélectionnée.</p>`; return; }
+  let html = "";
+  for(const sec of SECTIONS){
+    html += `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">`;
+    for(const c of sec.champs){
+      html += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
+    }
+    html += `</div>`;
+  }
+  // Section contrôles
+  html += `<h2 class="section">Contrôles et entraves</h2><div id="zoneCtrl"></div>
+           <button class="sec" id="btnAddCtrl">+ Ajouter un contrôle</button>`;
+  el("contenu").innerHTML = html;
+  rendreControles();
+  el("btnAddCtrl").onclick = ajouterControle;
+  el("contenu").addEventListener("input", ()=>marquerModifie());
+  el("contenu").addEventListener("change", e=>{
+    // si on change la catégorie d'un contrôle, on régénère sa liste de types
+    if(e.target.id && e.target.id.match(/^ctrl\d+_Categorie$/)) rendreControles(true);
+    marquerModifie();
+  });
+}
+
+function rendreControles(depuisChangement){
+  // Sauvegarde des valeurs en cours si on régénère (changement de catégorie)
+  const zone = el("zoneCtrl");
+  if(!zone) return;
+  zone.innerHTML = controlesActuels.length? "" : `<p class="vide">Aucun contrôle pour cette entité.</p>`;
+  controlesActuels.forEach((ctrl, idx)=>{
+    const cat = ctrl.Categorie;
+    let h = `<div class="controle"><div class="ctrl-tete"><b>Contrôle ${idx+1}</b>
+             <button class="lien" data-sup="${idx}">supprimer</button></div><div class="grille">`;
+    for(const c of CONTROLES.champs){
+      h += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat)}</div>`;
+    }
+    h += `</div></div>`;
+    zone.insertAdjacentHTML("beforeend", h);
+  });
+  zone.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
+    controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
+  });
+}
+
+function ajouterControle(){
+  const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
+  CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
+  controlesActuels.push(vide); marquerModifie(); rendreControles();
+}
+
+function marquerModifie(){ modifie=true; el("btnEnregistrer").disabled=false; el("btnAnnuler").disabled=false; el("etat").textContent=""; }
+
+// -- Enregistrement dans Grist --
+async function enregistrer(){
+  if(!recordActuel) return;
+  el("btnEnregistrer").disabled = true;
+  el("etat").textContent = "Enregistrement…"; el("etat").className="etat";
+  try{
+    // 1) Champs de l'entité PM
+    const champsPM = {};
+    for(const sec of SECTIONS) for(const c of sec.champs){
+      const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
+    }
+    await grist.selectedTable.update({ id: recordActuel.id, fields: champsPM });
+
+    // 2) Contrôles : lecture des valeurs saisies
+    const actions = [];
+    controlesActuels.forEach((ctrl, idx)=>{
+      const fields = { [CONTROLES.refCol]: recordActuel.id };
+      for(const c of CONTROLES.champs){
+        const v = lireChamp(c, "ctrl"+idx+"_"); if(v!==undefined) fields[c.id]=v;
+      }
+      if(ctrl.id) actions.push(["UpdateRecord", CONTROLES.table, ctrl.id, fields]);
+      else        actions.push(["AddRecord",    CONTROLES.table, null,     fields]);
+    });
+    // suppressions (contrôles retirés de l'écran mais existant en base)
+    // -> gérées implicitement : on ne les inclut pas ; pour vraiment supprimer,
+    //    on compare aux ids d'origine :
+    (window._ctrlOrigIds||[]).forEach(id=>{
+      if(!controlesActuels.some(c=>c.id===id)) actions.push(["RemoveRecord", CONTROLES.table, id]);
+    });
+    if(actions.length) await grist.docApi.applyUserActions(actions);
+
+    modifie=false; el("btnAnnuler").disabled=true;
+    el("etat").textContent = "Enregistré ✓"; el("etat").className="etat ok";
+  }catch(err){
+    console.error(err);
+    el("etat").textContent = "Erreur : "+(err.message||err); el("etat").className="etat err";
+    el("btnEnregistrer").disabled=false;
+  }
+}
+
+el("btnEnregistrer").onclick = enregistrer;
+el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
+
+// -- Chargement d'une fiche --
+async function chargerFiche(rec){
+  recordActuel = rec;
+  el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
+  await chargerControles(rec.id);
+  window._ctrlOrigIds = controlesActuels.map(c=>c.id);
+  modifie=false; el("btnEnregistrer").disabled=true; el("btnAnnuler").disabled=true; el("etat").textContent="";
+  rendre();
+}
+
+// -- Initialisation Grist --
+grist.ready({ requiredAccess:"full" });
+Promise.all([chargerChoix(), chargerTypes()]).then(()=>{
+  grist.onRecord(async (record)=>{ await chargerFiche(record); });
+}).catch(e=>{ el("contenu").innerHTML = `<p class="etat err">Erreur d'initialisation : ${esc(e.message||e)}</p>`; });
+</script>
+</body>
+</html>
