@@ -45,6 +45,16 @@
   .ctrl-tete b{font-size:13px;}
   .vide{color:var(--muet); font-style:italic; padding:8px 0;}
   .lien{color:var(--bleu); cursor:pointer; font-size:13px; background:none; padding:2px 6px;}
+    /* Menu déroulant à cases */
+  .multi{position:relative;}
+  .multi-tete{border:1px solid var(--bord); border-radius:6px; padding:6px 8px;
+     cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:#fff;}
+  .multi-liste{display:none; position:absolute; z-index:10; left:0; right:0; top:100%;
+     margin-top:2px; max-height:220px; overflow-y:auto; background:#fff;
+     border:1px solid var(--bord); border-radius:6px; padding:6px; box-shadow:0 4px 12px rgba(0,0,0,.12);}
+  .multi.ouvert .multi-liste{display:block;}
+  .multi .case{display:flex; align-items:center; gap:8px; padding:4px 6px; cursor:pointer;}
+  .multi .case:hover{background:var(--gris);}
 </style>
 </head>
 <body>
@@ -128,7 +138,17 @@ let modifie = false;
 
 const el = id => document.getElementById(id);
 const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
+// Ouvre / ferme un menu déroulant à cases
+function ouvrirFermer(tete){
+  const boite = tete.parentElement;          // le <div class="multi">
+  const ouvert = boite.classList.toggle("ouvert");   // ajoute ou retire "ouvert"
+  // referme les autres menus déjà ouverts
+  document.querySelectorAll(".multi.ouvert").forEach(m=>{ if(m!==boite) m.classList.remove("ouvert"); });
+}
+// referme si on clique en dehors d'un menu
+document.addEventListener("click", e=>{
+  if(!e.target.closest(".multi")) document.querySelectorAll(".multi.ouvert").forEach(m=>m.classList.remove("ouvert"));
+});
 // -- Conversions dates (Grist stocke des secondes depuis epoch) --
 function dateVersInput(v){
   if(v==null||v==="") return "";
