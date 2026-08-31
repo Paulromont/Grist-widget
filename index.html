@@ -203,9 +203,13 @@ function champHTML(champ, valeur, prefix, ctrlCat){
     const table = prefix.startsWith("ctrl") ? CONTROLES.table : "PM";
     const opts = (choix[table]&&choix[table][champ.id])||[];
     const sel = listeVersTab(valeur);
-    return `<div class="cases" data-nom="${nom}">`+
+    const resume = sel.length ? sel.length + " sélectionné(s)" : "-";
+    return `<div class="multi" data-nom="${nom}">`+
+      `<div class="multi-tete" onsclick="ouvrirFermer (this)">${esc(resume)} <span class="fleche">▾</span></div>`+
+      `<div class="multi-liste">`+
       opts.map(o=>`<label class="case"><input type="checkbox" value="${esc(o)}" ${sel.includes(o)?"checked":""}> ${esc(o)}</label>`).join("")+
-      `</div>`;
+      `</div>`+
+    `</div>`;
   }
   if(champ.type==="reftype"){
     // liste filtrée par la catégorie du contrôle
