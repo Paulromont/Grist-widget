@@ -81,8 +81,8 @@ const SECTIONS = [
   ]},
   { titre:"Domaine d'activité", champs:[
     {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne", type:"choice"},
-    {id:"Domaine_declare", label:"Domaines d'activités déclarés", type:"choice"},
-    {id:"Domaine_reel",    label:"Domaines d'activités réels", type:"choice"},
+    {id:"Domaine_declare_1", label:"Domaines d'activités déclarés", type:"choicelist"},
+    {id:"Domaine_reel_2",    label:"Domaines d'activités réels", type:"choicelist"},
   ]},
   { titre:"Signalement d'origine", champs:[
     {id:"Date_signalement",       label:"Date du signalement d'origine", type:"date"},
@@ -112,7 +112,7 @@ const CONTROLES = {
     {id:"Date_declenchement",  label:"Date de déclenchement", type:"date"},
     {id:"Date_cloture",        label:"Date de clôture", type:"date"},
     {id:"Service_menant",      label:"Service menant", type:"choice"},
-    {id:"Service_partenaire",  label:"Services partenaires", type:"choicelist"},
+    {id:"Service_partenaire_1",label:"Services partenaires", type:"choicelist"},
     {id:"Commentaires",        label:"Commentaires", type:"textarea", large:true},
     {id:"Precision",           label:"Précision (pour « Autre »)", type:"textarea", large:true},
   ]
