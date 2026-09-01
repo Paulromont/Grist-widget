@@ -287,7 +287,7 @@ function rendreControles(depuisChangement){
     zone.insertAdjacentHTML("beforeend", h);
   });
   zone.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
-    controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
+    capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
 }
 
