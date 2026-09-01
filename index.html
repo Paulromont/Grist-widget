@@ -219,17 +219,13 @@ function champHTML(champ, valeur, prefix, ctrlCat){
       opts.map(o=>`<option ${o===valeur?"selected":""} value="${esc(o)}">${esc(o)}</option>`).join("")+
       `</select>`;
   }
-  if(champ.type==="choicelist"){
+    if(champ.type==="choicelist"){
     const table = prefix.startsWith("ctrl") ? CONTROLES.table : "PM";
     const opts = (choix[table]&&choix[table][champ.id])||[];
     const sel = listeVersTab(valeur);
-    const resume = sel.length ? sel.length + " sélectionné(s)" : "-";
-    return `<div class="multi" data-nom="${nom}">`+
-      `<div class="multi-tete" onsclick="ouvrirFermer (this)">${esc(resume)} <span class="fleche">▾</span></div>`+
-      `<div class="multi-liste">`+
-      opts.map(o=>`<label class="case"><input type="checkbox" value="${esc(o)}" ${sel.includes(o)?"checked":""}> ${esc(o)}</label>`).join("")+
-      `</div>`+
-    `</div>`;
+    return `<select id="${nom}" multiple size="4">`+
+        opts.map(o=>`<option ${sel.includes(o)?"selected":""} value="${esc(o)}">${esc(o)}</option>`).join("")+
+      `</select>`;
   }
   if(champ.type==="reftype"){
     // liste filtrée par la catégorie du contrôle
@@ -362,6 +358,25 @@ grist.ready({ requiredAccess:"full" });
 Promise.all([chargerChoix(), chargerTypes()]).then(()=>{
   grist.onRecord(async (record)=>{ await chargerFiche(record); });
 }).catch(e=>{ el("contenu").innerHTML = `<p class="etat err">Erreur d'initialisation : ${esc(e.message||e)}</p>`; });
+
+// Écouteur global pour activer la sélection multiple par simple clic sans la touche Ctrl
+document.addEventListener('mousedown', function(e) {
+  // On vérifie si l'élément cliqué est une option à l'intérieur d'un select multiple
+  const option = e.target;
+  if (option.tagName === 'OPTION' && option.parentNode.multiple) {
+    e.preventDefault(); // Bloque le comportement natif qui désélectionne tout
+    
+    const select = option.parentNode;
+    
+    // Alterne l'état sélectionné de l'option cliquée
+    option.selected = !option.selected;
+    select.focus();
+    
+    // Déclenche l'événement 'change' pour que Grist ou vos scripts détectent la modification
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}, true); // Le paramètre true (capture) permet d'intercepter l'événement avant le navigateur
+
 </script>
 </body>
 </html>
