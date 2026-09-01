@@ -291,6 +291,15 @@ function rendreControles(depuisChangement){
   });
 }
 
+function capturerControles(){
+  controlesActuels.forEach((ctrl, idx)=>{
+    for(const c of CONTROLES.champs){
+      const v = lireChamp(c, "ctrl"+idx+"_");
+      if(v!==undefined) ctrl[c.id] = v;
+    }
+  });
+}
+
 function ajouterControle(){
   const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
   CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
