@@ -266,7 +266,7 @@ function rendre(){
   el("contenu").addEventListener("input", ()=>marquerModifie());
   el("contenu").addEventListener("change", e=>{
     // si on change la catégorie d'un contrôle, on régénère sa liste de types
-    if(e.target.id && e.target.id.match(/^ctrl\d+_Categorie$/)) rendreControles(true);
+    if(e.target.id && e.target.id.match(/^ctrl\d+_Categorie$/)){ capturerControles(); rendreControles(true); }
     marquerModifie();
   });
 }
