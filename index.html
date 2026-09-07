@@ -115,14 +115,19 @@ const SECTIONS = [
 // Table des contrôles reliée. refCol = colonne Référence qui pointe vers PM.
 const CONTROLES = {
   table:"Controles", refCol:"PM",
-  typesTable:"Types_controle", typesLibelle:"Libelle", typesCategorie:"Categorie",
+  typesTable:"Types_controle_entrave", typesLibelle:"Libelle", typesCategorie:"Categorie",
+  catTable:"Categories", catLibelle:"Cathegorie", catNature:"Nature",
+  natureCol:"Nature_du_controle_entrave", natureFiscal:"Actions de contrôle fiscal",
   champs:[
-    {id:"Categorie",           label:"Catégorie de contrôle", type:"choice"},
-    {id:"Type_controle",       label:"Type de contrôle", type:"reftype"}, // dépend de Categorie
+    {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
+    {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},   // dépend de Nature
+    {id:"Type_controle",       label:"Type de contrôle", type:"reftype"},        // dépend de Catégorie
     {id:"Date_declenchement",  label:"Date de déclenchement", type:"date"},
     {id:"Date_cloture",        label:"Date de clôture", type:"date"},
     {id:"Service_menant",      label:"Service menant", type:"choice"},
     {id:"Service_partenaire_1",label:"Services partenaires", type:"choicelist"},
+    {id:"Montant_notifie",     label:"Montant notifié (€)", type:"number", fiscalOnly:true},
+    {id:"Montant_recouvre",    label:"Montant recouvré (€)", type:"number", fiscalOnly:true},
     {id:"Commentaires",        label:"Commentaires", type:"textarea", large:true},
   ]
 };
@@ -191,6 +196,12 @@ async function chargerTypes(){
   typesRows = t.id.map((id,i)=>({
     id, libelle:t[CONTROLES.typesLibelle][i], categorie:t[CONTROLES.typesCategorie][i]
   }));
+}
+     let catRows = [];
+// -- Récupère le référentiel des catégories (avec leur nature) --
+async function chargerCategories(){
+  const t = await grist.docApi.fetchTable(CONTROLES.catTable);
+  catRows = t.id.map((id,i)=>({ libelle:t[CONTROLES.catLibelle][i], nature:t[CONTROLES.catNature][i] }));
 }
 
 // -- Récupère les contrôles reliés à l'entité courante --
@@ -363,7 +374,7 @@ async function chargerFiche(rec){
 
 // -- Initialisation Grist --
 grist.ready({ requiredAccess:"full" });
-Promise.all([chargerChoix(), chargerTypes()]).then(()=>{
+Promise.all([chargerChoix(), chargerTypes(), chargerCategories()]).then(()=>{
   grist.onRecord(async (record)=>{ await chargerFiche(record); });
 }).catch(e=>{ el("contenu").innerHTML = `<p class="etat err">Erreur d'initialisation : ${esc(e.message||e)}</p>`; });
 
