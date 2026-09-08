@@ -117,7 +117,7 @@ const CONTROLES = {
   table:"Controles", refCol:"PM",
   typesTable:"Types_controle_entrave", typesLibelle:"Libelle", typesCategorie:"Categorie",
   catTable:"Categories", catLibelle:"Cathegorie", catNature:"Nature",
-  natureCol:"Nature_du_controle_entrave", natureFiscal:"Actions de contrôle fiscal",
+  natureCol:"Nature_du_controle_entrave",
   champs:[
     {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
     {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},   // dépend de Nature
@@ -126,8 +126,12 @@ const CONTROLES = {
     {id:"Date_cloture",        label:"Date de clôture", type:"date"},
     {id:"Service_menant",      label:"Service menant", type:"choice"},
     {id:"Service_partenaire_1",label:"Services partenaires", type:"choicelist"},
-    {id:"Montant_notifie",     label:"Montant notifié (€)", type:"number", fiscalOnly:true},
-    {id:"Montant_recouvre",    label:"Montant recouvré (€)", type:"number", fiscalOnly:true},
+    // types : n'apparaît que si le libellé du Type de contrôle figure dans cette liste
+    {id:"Montant_notifie",     label:"Montant notifié (€)", type:"number",
+      types:["Procédure de contrôle fiscal externe (CFE) ou de contrôle sur pièce (CSP)"]},
+    {id:"Montant_recouvre",    label:"Montant recouvré (€)", type:"number",
+      types:["Procédure de contrôle fiscal externe (CFE) ou de contrôle sur pièce (CSP)",
+             "Procédure de contrôle des OSBL (à détailler)"]},
     {id:"Commentaires",        label:"Commentaires", type:"textarea", large:true},
   ]
 };
@@ -196,6 +200,11 @@ async function chargerTypes(){
   typesRows = t.id.map((id,i)=>({
     id, libelle:t[CONTROLES.typesLibelle][i], categorie:t[CONTROLES.typesCategorie][i]
   }));
+}
+// -- Libellé du type de contrôle à partir de son id (référence) --
+function libelleType(id){
+  const r = typesRows.find(t=>t.id===id);
+  return r ? r.libelle : null;
 }
      let catRows = [];
 // -- Récupère le référentiel des catégories (avec leur nature) --
@@ -275,9 +284,6 @@ function rendre(){
   for(const sec of SECTIONS){
     html += `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">`;
     for(const c of sec.champs){
-      if(c.fiscalOnly && nat !== CONTROLES.natureFiscal) continue;
-      if(c.id === "Categorie" && !nat) continue;
-      if(c.id === "Type_controle" && !cat) continue;
       html += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
     }
     html += `</div>`;
@@ -290,8 +296,10 @@ function rendre(){
   el("btnAddCtrl").onclick = ajouterControle;
   el("contenu").addEventListener("input", ()=>marquerModifie());
   el("contenu").addEventListener("change", e=>{
-    // si on change la catégorie d'un contrôle, on régénère sa liste de types
-    if(e.target.id && e.target.id.match(/^ctrl\d+_(Nature_du_controle_entrave|Categorie)$/)){ capturerControles(); rendreControles(true); }    marquerModifie();
+    // si on change la nature, la catégorie ou le type d'un contrôle, on régénère la fiche
+    // (la nature filtre les catégories, la catégorie filtre les types, le type conditionne certains champs)
+    if(e.target.id && e.target.id.match(/^ctrl\d+_(Nature_du_controle_entrave|Categorie|Type_controle)$/)){ capturerControles(); rendreControles(true); }
+    marquerModifie();
   });
 }
 
@@ -303,9 +311,11 @@ function rendreControles(depuisChangement){
   controlesActuels.forEach((ctrl, idx)=>{
     const cat = ctrl.Categorie;
     const nat = ctrl[CONTROLES.natureCol];
+    const typeLib = libelleType(ctrl.Type_controle);
     let h = `<div class="controle"><div class="ctrl-tete"><b>Contrôle ${idx+1}</b>
              <button class="lien" data-sup="${idx}">supprimer</button></div><div class="grille">`;
     for(const c of CONTROLES.champs){
+      if(c.types && !c.types.includes(typeLib)) continue;
       h += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
     }
     h += `</div></div>`;
