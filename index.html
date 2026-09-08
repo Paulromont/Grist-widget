@@ -213,7 +213,7 @@ async function chargerControles(pmId){
 }
 
 // -- Fabrique un champ de saisie --
-function champHTML(champ, valeur, prefix, ctrlCat){
+function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
   const nom = prefix + champ.id;
   const tables = choix; // raccourci
   if(champ.type==="text")
@@ -244,6 +244,16 @@ function champHTML(champ, valeur, prefix, ctrlCat){
       dispo.map(r=>`<option ${r.id===valeur?"selected":""} value="${r.id}">${esc(r.libelle)}</option>`).join("")+
       `</select>`;
   }
+  if(champ.type==="refcat"){
+    // liste des catégories filtrée par la nature du contrôle
+    const dispo = catRows.filter(r=>!ctrlNat || r.nature===ctrlNat);
+    return `<select id="${nom}"><option value=""></option>`+
+      dispo.map(r=>`<option ${r.libelle===valeur?"selected":""} value="${esc(r.libelle)}">${esc(r.libelle)}</option>`).join("")+
+      `</select>`;
+  }
+  if(champ.type==="number"){
+    return `<input type="number" step="0.01" id="${nom}" value="${valeur!=null?esc(valeur):""}">`;
+  }
   return "";
 }
 
@@ -253,6 +263,7 @@ function lireChamp(champ, prefix){
   if(!n) return undefined;
   if(champ.type==="date")       return inputVersDate(n.value);
   if(champ.type==="reftype")    return n.value? Number(n.value) : 0;
+  if(champ.type==="number")     return n.value===""? null : parseFloat(n.value);
   if(champ.type==="choicelist") return tabVersListe([...n.selectedOptions].map(o=>o.value));
   return n.value;
 }
@@ -264,6 +275,7 @@ function rendre(){
   for(const sec of SECTIONS){
     html += `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">`;
     for(const c of sec.champs){
+      if(c.fiscalOnly && nat !== CONTROLES.natureFiscal) continue;
       html += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
     }
     html += `</div>`;
@@ -289,10 +301,11 @@ function rendreControles(depuisChangement){
   zone.innerHTML = controlesActuels.length? "" : `<p class="vide">Aucun contrôle pour cette entité.</p>`;
   controlesActuels.forEach((ctrl, idx)=>{
     const cat = ctrl.Categorie;
+    const nat = ctrl[CONTROLES.natureCol];
     let h = `<div class="controle"><div class="ctrl-tete"><b>Contrôle ${idx+1}</b>
              <button class="lien" data-sup="${idx}">supprimer</button></div><div class="grille">`;
     for(const c of CONTROLES.champs){
-      h += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat)}</div>`;
+      h += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
     }
     h += `</div></div>`;
     zone.insertAdjacentHTML("beforeend", h);
