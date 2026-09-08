@@ -276,6 +276,8 @@ function rendre(){
     html += `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">`;
     for(const c of sec.champs){
       if(c.fiscalOnly && nat !== CONTROLES.natureFiscal) continue;
+      if(c.id === "Categorie" && !nat) continue;
+      if(c.id === "Type_controle" && !cat) continue;
       html += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
     }
     html += `</div>`;
@@ -317,9 +319,20 @@ function rendreControles(depuisChangement){
 
 function capturerControles(){
   controlesActuels.forEach((ctrl, idx)=>{
+    const ancienneNature = ctrl[CONTROLES.natureCol];
+    const ancienneCat = ctrl.Categorie;
     for(const c of CONTROLES.champs){
       const v = lireChamp(c, "ctrl"+idx+"_");
       if(v!==undefined) ctrl[c.id] = v;
+    }
+    // Si la nature a changé : on vide la catégorie ET le type
+    if(ctrl[CONTROLES.natureCol] !== ancienneNature){
+      ctrl.Categorie = null;
+      ctrl.Type_controle = 0;
+    }
+    // Si la catégorie a changé : on vide le type
+    else if(ctrl.Categorie !== ancienneCat){
+      ctrl.Type_controle = 0;
     }
   });
 }
