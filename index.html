@@ -64,6 +64,7 @@
   <span class="etat" id="etat"></span>
   <button class="sec" id="btnAnnuler" disabled>Annuler</button>
   <button id="btnEnregistrer" disabled>Enregistrer</button>
+  <button class="sec" id="btnImprimer">Imprimer</button>
 </div>
 
 <div id="contenu"><p class="vide">Sélectionne une personne dans la vue reliée pour afficher sa fiche.</p></div>
@@ -394,6 +395,61 @@ async function enregistrer(){
   }
 }
 
+// Formate proprement la valeur d'un champ pour l'impression
+function valeurAffichee(champ, valeur){
+  if(champ.type==="date"){ const d=dateVersInput(valeur); return d ? d.split("-").reverse().join("/") : ""; }
+  if(champ.type==="choicelist") return listeVersTab(valeur).join(", ");
+  if(champ.type==="reftype"){ const r=typesRows.find(x=>x.id===valeur); return r ? r.libelle : ""; }
+  if(champ.type==="refcat") return valeur==null ? "" : String(valeur);
+  if(champ.type==="number") return (valeur==null||valeur==="") ? "" : valeur+" €";
+  return (valeur==null) ? "" : String(valeur);
+}
+
+// Ouvre une version imprimable propre de la fiche
+function imprimerFiche(){
+  if(!recordActuel){ return; }
+  const titre = "Fiche : " + (recordActuel.Pseudonyme || recordActuel.Mouvance || ("#"+recordActuel.id));
+  let corps = "";
+  for(const sec of SECTIONS){
+    let lignes = "";
+    for(const c of sec.champs){
+      const v = valeurAffichee(c, recordActuel[c.id]);
+      if(v!=="") lignes += `<tr><td class="lbl">${esc(c.label)}</td><td>${esc(v)}</td></tr>`;
+    }
+    if(lignes) corps += `<h2>${esc(sec.titre)}</h2><table class="ch">${lignes}</table>`;
+  }
+  corps += `<h2>Contrôles et entraves</h2>`;
+  if(!controlesActuels.length){ corps += `<p><i>Aucun contrôle.</i></p>`; }
+  controlesActuels.forEach((ctrl, idx)=>{
+    const nat = ctrl[CONTROLES.natureCol], cat = ctrl.Categorie;
+    let lignes = "";
+    for(const c of CONTROLES.champs){
+      if(c.id==="Categorie" && !nat) continue;
+      if(c.id==="Type_controle" && !cat) continue;
+      if(c.showForCat && !c.showForCat.includes(cat)) continue;
+      const v = valeurAffichee(c, ctrl[c.id]);
+      if(v!=="") lignes += `<tr><td class="lbl">${esc(c.label)}</td><td>${esc(v)}</td></tr>`;
+    }
+    corps += `<h3>Contrôle ${idx+1}</h3><table class="ch">${lignes}</table>`;
+  });
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titre)}</title>
+    <style>
+      body{font-family:Arial,sans-serif; color:#222; margin:24px; font-size:12px;}
+      h1{font-size:18px; color:#1F4E79; border-bottom:2px solid #1F4E79; padding-bottom:4px;}
+      h2{font-size:13px; color:#fff; background:#1F4E79; padding:4px 8px; margin:16px 0 6px; border-radius:3px;}
+      h3{font-size:12px; margin:12px 0 4px; color:#1F4E79;}
+      table.ch{width:100%; border-collapse:collapse; margin-bottom:8px;}
+      table.ch td{border:0.5px solid #ccc; padding:4px 6px; vertical-align:top;}
+      td.lbl{width:32%; color:#555; background:#f4f5f7;}
+      @media print{ body{margin:0;} }
+    </style></head><body><h1>${esc(titre)}</h1>${corps}</body></html>`;
+  const w = window.open("", "_blank");
+  if(!w){ alert("Autorise les fenêtres pop-up pour pouvoir imprimer."); return; }
+  w.document.write(html); w.document.close(); w.focus();
+  setTimeout(()=>w.print(), 300);
+}
+
+el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
 el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
 
