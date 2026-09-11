@@ -465,8 +465,21 @@ async function chargerFiche(rec){
 
 // -- Initialisation Grist --
 grist.ready({ requiredAccess:"full" });
+// Bascule PM/PP selon le tableId fourni avec chaque enregistrement
+function appliquerTable(tableId){
+  if(tableId === "PP" && TABLE_ENTITE !== "PP"){
+    SECTIONS = SECTIONS_PP; CONTROLES.refCol = "PP"; TABLE_ENTITE = "PP";
+  } else if(tableId === "PM" && TABLE_ENTITE !== "PM"){
+    SECTIONS = SECTIONS_PM; CONTROLES.refCol = "PM"; TABLE_ENTITE = "PM";
+  }
+}
 Promise.all([chargerChoix(), chargerTypes(), chargerCategories()]).then(()=>{
-  grist.onRecord(async (record)=>{ await chargerFiche(record); });
+  grist.onRecord(async (record, mappings)=>{
+    // Grist fournit le tableId de la fiche sélectionnée ; on l'utilise pour choisir PM ou PP
+    const tid = (record && record.tableId) || (mappings && mappings.tableId);
+    if(tid) appliquerTable(tid);
+    await chargerFiche(record);
+  });
 }).catch(e=>{ el("contenu").innerHTML = `<p class="etat err">Erreur d'initialisation : ${esc(e.message||e)}</p>`; });
 
 // Écouteur global pour activer la sélection multiple par simple clic sans la touche Ctrl
