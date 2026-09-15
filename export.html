@@ -128,10 +128,9 @@ async function exporter(){
     for(const ent of entites){
       const titre = ent[ENTITE.nomAffiche] || ("#"+ent.id);
       lignes.push(ligne(["=== ENTITÉ : " + titre + " ==="]));
-      // Infos de l'entité (une paire libellé / valeur par ligne)
-      for(const c of ENTITE.champs){
-        lignes.push(ligne([c.label, fmt(ent[c.id], c.type, typesMap)]));
-      }
+      // Infos de l'entité : une ligne de libellés, puis une ligne de valeurs
+      lignes.push(ligne(ENTITE.champs.map(c => c.label)));
+      lignes.push(ligne(ENTITE.champs.map(c => fmt(ent[c.id], c.type, typesMap))));
       // Contrôles de cette entité
       const siens = controles.filter(x => x[CTRL.refCol] === ent.id);
       lignes.push(ligne([""]));
