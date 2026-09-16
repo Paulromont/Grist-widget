@@ -118,7 +118,7 @@ const CONTROLES = {
   table:"Controles", refCol:"PM",
   typesTable:"Types_controle_entrave", typesLibelle:"Libelle", typesCategorie:"Categorie",
   catTable:"Categories", catLibelle:"Cathegorie", catNature:"Nature",
-  natureCol:"Nature_du_controle_entrave",
+  natureCol:"Nature_du_controle_entrave", natureEntrave:"Actions d’entrave",
   champs:[
     {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
     {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},   // dépend de Nature
@@ -234,7 +234,8 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
     return `<input type="date" id="${nom}" value="${dateVersInput(valeur)}">`;
   if(champ.type==="choice"){
     const table = prefix.startsWith("ctrl") ? CONTROLES.table : "PM";
-    const opts = (choix[table]&&choix[table][champ.id])||[];
+    let opts = (choix[table]&&choix[table][champ.id])||[];
+    if(champ.id === CONTROLES.natureCol) opts = opts.filter(o => o !== CONTROLES.natureEntrave);
     return `<select id="${nom}"><option value=""></option>`+
       opts.map(o=>`<option ${o===valeur?"selected":""} value="${esc(o)}">${esc(o)}</option>`).join("")+
       `</select>`;
@@ -290,11 +291,14 @@ function rendre(){
     html += `</div>`;
   }
   // Section contrôles
-  html += `<h2 class="section">Contrôles et entraves</h2><div id="zoneCtrl"></div>
+  html += `<h2 class="section">Actions de contrôle</h2><div id="zoneCtrl"></div>
            <button class="sec" id="btnAddCtrl">+ Ajouter un contrôle</button>`;
+  html += `<h2 class="section">Actions d'entrave</h2><div id="zoneEntrave"></div>
+           <button class="sec" id="btnAddEntrave">+ Ajouter une entrave</button>`;
   el("contenu").innerHTML = html;
   rendreControles();
   el("btnAddCtrl").onclick = ajouterControle;
+  el("btnAddEntrave").onclick = ajouterEntrave;
   el("contenu").addEventListener("input", ()=>marquerModifie());
   el("contenu").addEventListener("change", e=>{
     // si on change la nature, la catégorie ou le type d'un contrôle, on régénère la fiche
@@ -305,24 +309,27 @@ function rendre(){
 }
 
 function rendreControles(depuisChangement){
-  // Sauvegarde des valeurs en cours si on régénère (changement de catégorie)
-  const zone = el("zoneCtrl");
-  if(!zone) return;
-  zone.innerHTML = controlesActuels.length? "" : `<p class="vide">Aucun contrôle pour cette entité.</p>`;
+  const zC = el("zoneCtrl"), zE = el("zoneEntrave");
+  if(!zC && !zE) return;
+  let htmlC = "", htmlE = "", nC = 0, nE = 0;
   controlesActuels.forEach((ctrl, idx)=>{
     const cat = ctrl.Categorie;
     const nat = ctrl[CONTROLES.natureCol];
+    const estEntrave = (nat === CONTROLES.natureEntrave);
     const typeLib = libelleType(ctrl.Type_controle);
-    let h = `<div class="controle"><div class="ctrl-tete"><b>Contrôle ${idx+1}</b>
-             <button class="lien" data-sup="${idx}">supprimer</button></div><div class="grille">`;
+    const titre = estEntrave ? ("Entrave " + (++nE)) : ("Contrôle " + (++nC));
+    let h = `<div class="controle"><div class="ctrl-tete"><b>${titre}</b> <button class="lien" data-sup="${idx}">supprimer</button></div><div class="grille">`;
     for(const c of CONTROLES.champs){
+      if(estEntrave && c.id === CONTROLES.natureCol) continue;
       if(c.types && !c.types.includes(typeLib)) continue;
       h += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
     }
     h += `</div></div>`;
-    zone.insertAdjacentHTML("beforeend", h);
+    if(estEntrave) htmlE += h; else htmlC += h;
   });
-  zone.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
+  if(zC) zC.innerHTML = htmlC || `<p class="vide">Aucun contrôle pour cette entité.</p>`;
+  if(zE) zE.innerHTML = htmlE || `<p class="vide">Aucune entrave pour cette entité.</p>`;
+  document.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
     capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
 }
@@ -350,6 +357,13 @@ function capturerControles(){
 function ajouterControle(){
   const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
   CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
+  controlesActuels.push(vide); marquerModifie(); rendreControles();
+}
+
+function ajouterEntrave(){
+  const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
+  CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
+  vide[CONTROLES.natureCol] = CONTROLES.natureEntrave;   // nature figée = entrave
   controlesActuels.push(vide); marquerModifie(); rendreControles();
 }
 
