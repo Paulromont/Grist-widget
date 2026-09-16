@@ -117,12 +117,13 @@ const SECTIONS = [
 const CONTROLES = {
   table:"Controles", refCol:"PM",
   typesTable:"Types_controle_entrave", typesLibelle:"Libelle", typesCategorie:"Categorie",
-  catTable:"Categories", catLibelle:"Cathegorie", catNature:"Nature",
+  catTable:"Categories", catLibelle:"Cathegorie", catNature:"Nature", catLibre:"type_libre",
   natureCol:"Nature_du_controle_entrave", natureEntrave:"Actions d’entrave",
   champs:[
     {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
     {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},   // dépend de Nature
     {id:"Type_controle",       label:"Type de contrôle", type:"reftype"},        // dépend de Catégorie
+    {id:"Type_libre",          label:"Type (saisie libre)", type:"text"},
     {id:"Date_declenchement",  label:"Date de déclenchement", type:"date"},
     {id:"Date_cloture",        label:"Date de clôture", type:"date"},
     {id:"Service_menant",      label:"Service menant", type:"choice"},
@@ -211,7 +212,7 @@ function libelleType(id){
 // -- Récupère le référentiel des catégories (avec leur nature) --
 async function chargerCategories(){
   const t = await grist.docApi.fetchTable(CONTROLES.catTable);
-  catRows = t.id.map((id,i)=>({ libelle:t[CONTROLES.catLibelle][i], nature:t[CONTROLES.catNature][i] }));
+  catRows = t.id.map((id,i)=>({ libelle:t[CONTROLES.catLibelle][i], nature:t[CONTROLES.catNature][i], libre:t[CONTROLES.catLibre][i] }));
 }
 
 // -- Récupère les contrôles reliés à l'entité courante --
@@ -308,6 +309,11 @@ function rendre(){
   });
 }
 
+// Une catégorie est-elle en saisie libre ? (case cochée dans la table Categories)
+function catEstLibre(cat){
+  const r = catRows.find(x => x.libelle === cat);
+  return r ? !!r.libre : false;
+}
 function rendreControles(depuisChangement){
   const zC = el("zoneCtrl"), zE = el("zoneEntrave");
   if(!zC && !zE) return;
@@ -322,6 +328,8 @@ function rendreControles(depuisChangement){
     for(const c of CONTROLES.champs){
       if(estEntrave && c.id === CONTROLES.natureCol) continue;
       if(c.types && !c.types.includes(typeLib)) continue;
+      if(c.id === "Type_controle" && catEstLibre(cat)) continue;
+      if(c.id === "Type_libre" && !catEstLibre(cat)) continue;
       h += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
     }
     h += `</div></div>`;
