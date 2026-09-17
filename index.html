@@ -497,9 +497,9 @@ function appliquerTable(tableId){
 }
 Promise.all([chargerChoix(), chargerTypes(), chargerCategories()]).then(()=>{
   grist.onRecord(async (record, mappings)=>{
-    // Grist fournit le tableId de la fiche sélectionnée ; on l'utilise pour choisir PM ou PP
-    const tid = (record && record.tableId) || (mappings && mappings.tableId);
-    if(tid) appliquerTable(tid);
+    // Détecte PM ou PP d'après les colonnes présentes dans la fiche (fiable, indépendant de l'API tableId)
+    const tid = (record && ("sexe" in record || "Nationalite" in record)) ? "PP" : "PM";
+    appliquerTable(tid);
     await chargerFiche(record);
   });
 }).catch(e=>{ el("contenu").innerHTML = `<p class="etat err">Erreur d'initialisation : ${esc(e.message||e)}</p>`; });
