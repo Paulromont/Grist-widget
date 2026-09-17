@@ -75,7 +75,7 @@
    Chaque champ : { id: "id_colonne_Grist", label: "Libellé affiché", type: ... }
    type : "text" | "textarea" | "choice" | "choicelist" | "date"
    ========================================================================= */
-const SECTIONS = [
+const SECTIONS_PM = [
   { titre:"Présentation de l'entité", champs:[
     {id:"Etat_du_dossier",  label:"État du dossier", type:"choice"},
     {id:"Affiliation",      label:"Affiliation", type:"choice"},
@@ -114,6 +114,40 @@ const SECTIONS = [
 ];
 
 // Table des contrôles reliée. refCol = colonne Référence qui pointe vers PM.
+const SECTIONS_PP = [
+  { titre:"Identité de la personne", champs:[
+    {id:"Pseudonyme",   label:"Pseudonyme", type:"text"},
+    {id:"sexe",         label:"Sexe", type:"choice"},
+    {id:"Nationalite",  label:"Nationalité", type:"text"},
+    {id:"Etat_du_dossier", label:"État du dossier", type:"choice"},
+    {id:"Affiliation",  label:"Affiliation", type:"choice"},
+    {id:"Mouvance",     label:"Mouvance", type:"choice"},
+    {id:"Objectif",     label:"Objectif d'intérêt local / national", type:"choice"},
+    {id:"Departement",  label:"Département", type:"choice"},
+    {id:"Ville",        label:"Ville", type:"text"},
+    {id:"Activite_s_justfiant_le_suivi", label:"Activité(s) justifiant le suivi", type:"choicelist"},
+  ]},
+  { titre:"Signalement d'origine", champs:[
+    {id:"Date_signalement",    label:"Date du signalement d'origine", type:"date"},
+    {id:"Service_signalant",   label:"Service signalant", type:"choice"},
+    {id:"Contenu_signalement", label:"Contenu du signalement", type:"textarea", large:true},
+    {id:"commentaires",        label:"Commentaires", type:"textarea", large:true},
+  ]},
+  { titre:"Éléments de contexte", champs:[
+    {id:"Dirigeants",          label:"Dirigeants", type:"textarea"},
+    {id:"Personnels_benevoles",label:"Personnels bénévoles", type:"textarea"},
+    {id:"Personne_s_morale_ou_physique_liee", label:"Personne(s) morale ou physique liée", type:"textarea"},
+    {id:"Fonctions_Noms_nature_des_liens_suivi_en_CLIR_", label:"Fonctions (noms, nature des liens, suivi en CLIR…)", type:"textarea"},
+    {id:"Projet_de_controle",  label:"Projet de contrôle", type:"textarea"},
+    {id:"Dates_de_passage_en_CLIR", label:"Dates de passage en CLIR", type:"date"},
+    {id:"Points_vigilance",    label:"Points de vigilance", type:"textarea"},
+    {id:"Champs_libre",        label:"Champs libre (autres éléments de contexte)", type:"textarea", large:true},
+  ]},
+];
+// Le widget choisit SECTIONS_PM ou SECTIONS_PP selon la table détectée
+let SECTIONS = SECTIONS_PM;
+let TABLE_ENTITE = "PM";
+
 const CONTROLES = {
   table:"Controles", refCol:"PM",
   typesTable:"Types_controle_entrave", typesLibelle:"Libelle", typesCategorie:"Categorie",
@@ -234,7 +268,7 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
   if(champ.type==="date")
     return `<input type="date" id="${nom}" value="${dateVersInput(valeur)}">`;
   if(champ.type==="choice"){
-    const table = prefix.startsWith("ctrl") ? CONTROLES.table : "PM";
+    const table = prefix.startsWith("ctrl") ? CONTROLES.table : TABLE_ENTITE;
     let opts = (choix[table]&&choix[table][champ.id])||[];
     if(champ.id === CONTROLES.natureCol) opts = opts.filter(o => o !== CONTROLES.natureEntrave);
     return `<select id="${nom}"><option value=""></option>`+
@@ -242,7 +276,7 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
       `</select>`;
   }
     if(champ.type==="choicelist"){
-    const table = prefix.startsWith("ctrl") ? CONTROLES.table : "PM";
+    const table = prefix.startsWith("ctrl") ? CONTROLES.table : TABLE_ENTITE;
     const opts = (choix[table]&&choix[table][champ.id])||[];
     const sel = listeVersTab(valeur);
     return `<select id="${nom}" multiple size="4">`+
