@@ -60,6 +60,9 @@
 <body>
 
 <div class="barre">
+  <button class="sec" id="btnPrec" title="Fiche précédente">‹</button>
+  <button class="sec" id="btnSuiv" title="Fiche suivante">›</button>
+  <button class="sec" id="btnNouveau">+ Nouvelle personne</button>
   <span class="titre-fiche" id="titre">Aucune fiche sélectionnée</span>
   <span class="etat" id="etat"></span>
   <button class="sec" id="btnAnnuler" disabled>Annuler</button>
@@ -422,12 +425,18 @@ async function enregistrer(){
     for(const sec of SECTIONS) for(const c of sec.champs){
       const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
     }
-    await grist.selectedTable.update({ id: recordActuel.id, fields: champsPM });
+    let idEntite = recordActuel.id;
+    if(idEntite){
+      await grist.selectedTable.update({ id: idEntite, fields: champsPM });
+    } else {
+      const cree = await grist.selectedTable.create({ fields: champsPM });
+      idEntite = cree.id;
+    }
 
     // 2) Contrôles : lecture des valeurs saisies
     const actions = [];
     controlesActuels.forEach((ctrl, idx)=>{
-      const fields = { [CONTROLES.refCol]: recordActuel.id };
+      const fields = { [CONTROLES.refCol]: idEntite };
       for(const c of CONTROLES.champs){
         const v = lireChamp(c, "ctrl"+idx+"_"); if(v!==undefined) fields[c.id]=v;
       }
@@ -444,6 +453,12 @@ async function enregistrer(){
 
     modifie=false; el("btnAnnuler").disabled=true;
     el("etat").textContent = "Enregistré ✓"; el("etat").className="etat ok";
+    if(modeNouveau){
+      modeNouveau=false;
+      await rafraichirListe();
+      idxActuel = recordsListe.findIndex(r=>r.id===idEntite);
+      if(idxActuel>=0) await chargerFiche(recordsListe[idxActuel]);
+    }
   }catch(err){
     console.error(err);
     el("etat").textContent = "Erreur : "+(err.message||err); el("etat").className="etat err";
@@ -507,7 +522,33 @@ function imprimerFiche(){
 
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
-el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
+el("btnPrec").onclick = ()=> allerA(idxActuel-1);
+el("btnSuiv").onclick = ()=> allerA(idxActuel+1);
+el("btnNouveau").onclick = nouvellePersonne;
+el("btnAnnuler").onclick = ()=>{
+  if(modeNouveau){ modeNouveau=false; if(idxActuel>=0 && recordsListe[idxActuel]) chargerFiche(recordsListe[idxActuel]); else { recordActuel=null; rendre(); } }
+  else if(recordActuel && recordActuel.id) chargerFiche(recordActuel);
+};
+
+// -- Navigation interne (liste des fiches de la table courante) --
+let recordsListe = [], idxActuel = -1, modeNouveau = false;
+async function rafraichirListe(){
+  try{
+    const t = await grist.docApi.fetchTable(TABLE_ENTITE);
+    recordsListe = t.id.map((id,i)=>{ const o={id}; for(const c in t){ if(c!=="id") o[c]=t[c][i]; } return o; });
+  }catch(e){ recordsListe = []; }
+}
+async function allerA(idx){
+  if(idx<0 || idx>=recordsListe.length) return;
+  idxActuel = idx; modeNouveau = false;
+  await chargerFiche(recordsListe[idx]);
+}
+function nouvellePersonne(){
+  modeNouveau = true; recordActuel = {}; controlesActuels = []; window._ctrlOrigIds = [];
+  el("titre").textContent = "Nouvelle " + (TABLE_ENTITE==="PP" ? "personne physique" : "personne morale");
+  modifie = false; el("btnEnregistrer").disabled=false; el("btnAnnuler").disabled=false; el("etat").textContent="";
+  rendre();
+}
 
 // -- Chargement d'une fiche --
 async function chargerFiche(rec){
@@ -534,6 +575,9 @@ Promise.all([chargerChoix(), chargerTypes(), chargerCategories()]).then(()=>{
     // Détecte PM ou PP d'après les colonnes présentes dans la fiche (fiable, indépendant de l'API tableId)
     const tid = (record && ("sexe" in record || "Nationalite" in record)) ? "PP" : "PM";
     appliquerTable(tid);
+    await rafraichirListe();
+    idxActuel = recordsListe.findIndex(r=>r.id===record.id);
+    modeNouveau = false;
     await chargerFiche(record);
   });
 }).catch(e=>{ el("contenu").innerHTML = `<p class="etat err">Erreur d'initialisation : ${esc(e.message||e)}</p>`; });
