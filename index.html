@@ -338,6 +338,7 @@ async function enregistrer(){
   try{
     const champsPM = {};
     for(const sec of SECTIONS) for(const c of sec.champs){
+      if(c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
       const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
     }
     await grist.selectedTable.update({ id: recordActuel.id, fields: champsPM });
