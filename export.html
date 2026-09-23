@@ -3,173 +3,226 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Export CSV — PM + contrôles</title>
+<title>Export brut — recherche</title>
 <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<!-- Bibliothèque Excel (xlsx). Sur l'instance INTERNE, héberger ce fichier sur le réseau et changer l'URL. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <style>
   body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#2E2E2E; margin:0; padding:20px; background:#fff;}
-  h1{font-size:16px; color:#1F4E79; margin:0 0 6px;}
+  h1{font-size:16px; color:#1F4E79; margin:0 0 4px;}
   p.info{font-size:13px; color:#6B7280; margin:0 0 16px;}
-  button{font:inherit; cursor:pointer; border:none; border-radius:6px; padding:10px 18px;
+  .boutons{display:flex; gap:10px; flex-wrap:wrap;}
+  button{font:inherit; cursor:pointer; border:none; border-radius:6px; padding:10px 16px;
      background:#1F4E79; color:#fff; font-weight:500; font-size:14px;}
+  button.sec{background:#F4F5F7; color:#2E2E2E; border:1px solid #D8DCE1;}
   button:disabled{opacity:.5; cursor:default;}
-  .etat{margin-top:12px; font-size:13px; color:#6B7280;}
+  .etat{margin-top:14px; font-size:13px; color:#6B7280;}
   .etat.ok{color:#3B6D11;} .etat.err{color:#b42318;}
 </style>
 </head>
 <body>
-  <h1>Export CSV — entités PM et leurs contrôles</h1>
-  <p class="info">Génère un fichier CSV en blocs : pour chaque entité, ses informations, puis la liste de ses contrôles et entraves.</p>
-  <button id="btn">Télécharger le CSV</button>
+  <h1>Export brut (pour recherche par mot-clé)</h1>
+  <p class="info">Une ligne par entité, avec ses actions (contrôles et entraves) en colonnes, triées par date. Jusqu'à 8 actions détaillées ; au-delà, regroupées dans « Actions supplémentaires ». N'exporte que les entités accessibles (votre département).</p>
+  <div class="boutons">
+    <button id="btnPM">Exporter les PM</button>
+    <button id="btnPP">Exporter les PP</button>
+    <button class="sec" id="btnTout">Exporter tout (PM + PP)</button>
+  </div>
   <div class="etat" id="etat"></div>
 
 <script>
-/* ===================== CONFIGURATION ===================== */
-// Table de l'entité à exporter. Pour exporter les PP, mets "PP" + la liste de champs PP.
-const ENTITE = {
-  table: "PM",
-  nomAffiche: "Pseudonyme",           // sert à titrer chaque bloc
-  champs: [
-    {id:"Etat_du_dossier", label:"État du dossier", type:"choice"},
-    {id:"Affiliation", label:"Affiliation", type:"choice"},
-    {id:"Mouvance", label:"Mouvance", type:"choice"},
-    {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
-    {id:"Objectif", label:"Objectif d'intérêt local / national", type:"choice"},
-    {id:"Departement", label:"Département", type:"choice"},
-    {id:"Ville", label:"Ville", type:"text"},
-    {id:"Autres_adresses", label:"Autres adresses de l'entité", type:"text"},
-    {id:"Statut_juridique", label:"Statut juridique", type:"choice"},
-    {id:"Date_creation", label:"Date de création de la structure", type:"date"},
-    {id:"Numero_RNA", label:"Numéro RNA", type:"text"},
-    {id:"Numero_SIRET", label:"Numéro SIRET", type:"text"},
-    {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne", type:"choice"},
-    {id:"Domaine_declare_1", label:"Domaines d'activités déclarés", type:"choicelist"},
-    {id:"Domaine_reel_2", label:"Domaines d'activités réels", type:"choicelist"},
-    {id:"Date_signalement", label:"Date du signalement d'origine", type:"date"},
-    {id:"Service_signalant", label:"Service signalant", type:"choice"},
-    {id:"Contenu_signalement", label:"Contenu du signalement", type:"text"},
-    {id:"Commentaire_signalement", label:"Commentaire", type:"text"},
-    {id:"Dirigeants", label:"Dirigeants", type:"text"},
-    {id:"Personnels_benevoles", label:"Personnels bénévoles", type:"text"},
-    {id:"Personnes_liees_txt", label:"Personnes morales et/ou physiques liées", type:"text"},
-    {id:"Fonctions", label:"Fonctions (noms, nature des liens, suivi en CLIR...)", type:"text"},
-    {id:"Points_vigilance", label:"Points de vigilance", type:"text"},
-    {id:"Projet_controle", label:"Projet de contrôle", type:"text"},
-    {id:"Dates_passage_CLIR", label:"Dates de passage en CLIR", type:"text"},
-    {id:"Champs_libre", label:"Champs libre (autres éléments de contexte)", type:"text"},
-  ]
-};
+/* ===== CONFIGURATION ===== */
+const MAX = 8;   // nombre d'actions détaillées en colonnes
 
-// Table des contrôles reliée à l'entité (refCol = colonne référence vers l'entité)
-const CTRL = {
-  table: "Controles",
-  refCol: "PM",
-  typesTable: "Types_controle_entrave",   // pour afficher le libellé du type
-  typesLibelle: "Libelle",
-  champs: [
-    {id:"Nature_du_controle_entrave", label:"Nature", type:"choice"},
-    {id:"Categorie", label:"Catégorie", type:"choice"},
-    {id:"Type_controle", label:"Type", type:"ref"},
-    {id:"Date_declenchement", label:"Date de déclenchement", type:"date"},
-    {id:"Date_cloture", label:"Date de clôture", type:"date"},
-    {id:"Service_menant", label:"Service menant", type:"choice"},
-    {id:"Service_partenaire_1", label:"Services partenaires", type:"choicelist"},
-    {id:"Montant_notifie", label:"Montant notifié (€)", type:"number"},
-    {id:"Montant_recouvre", label:"Montant recouvré (€)", type:"number"},
-    {id:"Commentaires", label:"Commentaires", type:"text"},
-  ]
-};
+const ENTITE_PM = [
+  {id:"Etat_du_dossier",label:"État du dossier",type:"text"},
+  {id:"Affiliation",label:"Affiliation",type:"text"},
+  {id:"Mouvance",label:"Mouvance",type:"text"},
+  {id:"Pseudonyme",label:"Pseudonyme",type:"text"},
+  {id:"Objectif",label:"Objectif",type:"text"},
+  {id:"Departement",label:"Département",type:"text"},
+  {id:"Ville",label:"Ville",type:"text"},
+  {id:"Autres_adresses",label:"Autres adresses",type:"text"},
+  {id:"Statut_juridique",label:"Statut juridique",type:"text"},
+  {id:"Date_creation",label:"Date de création",type:"date"},
+  {id:"Numero_RNA",label:"Numéro RNA",type:"text"},
+  {id:"Numero_SIRET",label:"Numéro SIRET",type:"text"},
+  {id:"Activite_presentiel_ligne",label:"Activité présentiel/en ligne",type:"text"},
+  {id:"Domaine_declare_1",label:"Domaines déclarés",type:"list"},
+  {id:"Domaine_reel_2",label:"Domaines réels",type:"list"},
+  {id:"Date_signalement",label:"Date du signalement",type:"date"},
+  {id:"Service_signalant",label:"Service signalant",type:"text"},
+  {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
+  {id:"Commentaire_signalement",label:"Commentaire",type:"text"},
+  {id:"Dirigeants",label:"Dirigeants",type:"text"},
+  {id:"Personnels_benevoles",label:"Personnels bénévoles",type:"text"},
+  {id:"Personnes_liees_txt",label:"Personnes liées",type:"text"},
+  {id:"Fonctions",label:"Fonctions",type:"text"},
+  {id:"Points_vigilance",label:"Points de vigilance",type:"text"},
+  {id:"Projet_controle",label:"Projet de contrôle",type:"text"},
+  {id:"Dates_passage_CLIR",label:"Dates de passage en CLIR",type:"text"},
+  {id:"Champs_libre",label:"Champs libre",type:"text"},
+];
 
-const SEP = ";";   // séparateur CSV (le point-virgule ouvre proprement dans Excel français)
-/* ======================================================== */
+const ENTITE_PP = [
+  {id:"Etat_du_dossier",label:"État du dossier",type:"text"},
+  {id:"Pseudonyme",label:"Pseudonyme",type:"text"},
+  {id:"sexe",label:"Sexe",type:"text"},
+  {id:"Nationalite",label:"Nationalité",type:"text"},
+  {id:"Affiliation",label:"Affiliation",type:"text"},
+  {id:"Mouvance",label:"Mouvance",type:"text"},
+  {id:"Objectif",label:"Objectif",type:"text"},
+  {id:"Departement",label:"Département",type:"text"},
+  {id:"Ville",label:"Ville",type:"text"},
+  {id:"Activite_s_justfiant_le_suivi",label:"Activité(s) justifiant le suivi",type:"list"},
+  {id:"Date_signalement",label:"Date du signalement",type:"date"},
+  {id:"Service_signalant",label:"Service signalant",type:"text"},
+  {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
+  {id:"commentaires",label:"Commentaires",type:"text"},
+  {id:"Dirigeants",label:"Dirigeants",type:"text"},
+  {id:"Personnels_benevoles",label:"Personnels bénévoles",type:"text"},
+  {id:"Personne_s_morale_ou_physique_liee",label:"Personne(s) liée(s)",type:"text"},
+  {id:"Fonctions_Noms_nature_des_liens_suivi_en_CLIR_",label:"Fonctions (CLIR)",type:"text"},
+  {id:"Projet_de_controle",label:"Projet de contrôle",type:"text"},
+  {id:"Dates_de_passage_en_CLIR",label:"Dates de passage en CLIR",type:"date"},
+  {id:"Points_vigilance",label:"Points de vigilance",type:"text"},
+  {id:"Champs_libre",label:"Champs libre",type:"text"},
+];
+
+// Champs d'une action (contrôle ou entrave), dans l'ordre
+const ACTION = [
+  {id:"Nature_du_controle_entrave",label:"Nature",type:"text"},
+  {id:"Categorie",label:"Catégorie",type:"text"},
+  {id:"Type_controle",label:"Type",type:"ref"},
+  {id:"Type_libre",label:"Type (libre)",type:"text"},
+  {id:"Date_declenchement",label:"Date déclenchement",type:"date"},
+  {id:"Date_cloture",label:"Date clôture",type:"date"},
+  {id:"Date_notification",label:"Date notification",type:"date"},
+  {id:"Duree_jours",label:"Durée (jours)",type:"num"},
+  {id:"Motif_ERP",label:"Motif ERP",type:"bool"},
+  {id:"Service_menant",label:"Service menant",type:"text"},
+  {id:"Service_partenaire_1",label:"Services partenaires",type:"list"},
+  {id:"Montant_notifie",label:"Montants notifiés (€)",type:"num"},
+  {id:"Montant_recouvre",label:"Montants recouvrés (€)",type:"num"},
+  {id:"Montant_applicable",label:"Montant applicable (€)",type:"num"},
+  {id:"Controles_origine",label:"Contrôle(s) à l'origine",type:"reflist"},
+  {id:"Commentaires",label:"Commentaires",type:"text"},
+];
+/* ========================= */
 
 const el = id => document.getElementById(id);
+function setEtat(msg, cls){ el("etat").textContent = msg||""; el("etat").className = "etat" + (cls?(" "+cls):""); }
+function busy(on){ ["btnPM","btnPP","btnTout"].forEach(b=>el(b).disabled=on); }
 
-// Convertit une table fetchée (orientée colonnes) en liste de lignes {id, ...}
-function toRows(t){
-  return t.id.map((id,i)=>{ const o={id}; for(const c in t){ if(c!=="id") o[c]=t[c][i]; } return o; });
+function toRows(t){ return t.id.map((id,i)=>{ const o={id}; for(const c in t){ if(c!=="id") o[c]=t[c][i]; } return o; }); }
+
+function fmtDate(v){
+  if(v===null||v===undefined||v==="") return "";
+  const d = new Date((typeof v==="number"? v : Date.parse(v)/1000)*1000);
+  if(isNaN(d)) return "";
+  const p = n=>String(n).padStart(2,"0");
+  return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+d.getUTCFullYear();
 }
-// Formate une valeur selon son type
-function fmt(v, type, typesMap){
-  if(v===null || v===undefined || v==="") return "";
-  if(type==="date"){
-    const d = new Date((typeof v==="number"? v : Date.parse(v)/1000)*1000);
-    if(isNaN(d)) return "";
-    const p = n=>String(n).padStart(2,"0");
-    return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+d.getUTCFullYear();
-  }
-  if(type==="choicelist"){ const a = Array.isArray(v) ? (v[0]==="L"?v.slice(1):v) : [v]; return a.join(" ; "); }
-  if(type==="ref"){ return typesMap[v] || ""; }
-  if(type==="number"){ return String(v).replace(".", ","); }  // virgule décimale FR
+function fmt(v, type, ctx){
+  if(type==="num") return (v===null||v===undefined||v==="")? "" : v;
+  if(v===null||v===undefined||v==="") return "";
+  if(type==="date") return fmtDate(v);
+  if(type==="list"){ const a = Array.isArray(v)?(v[0]==="L"?v.slice(1):v):[v]; return a.join(" ; "); }
+  if(type==="ref") return ctx.typesMap[v] || "";
+  if(type==="reflist"){ const a = Array.isArray(v)?(v[0]==="L"?v.slice(1):v):[v]; return a.map(id=>ctx.resumeMap[id]||("#"+id)).join(" ; "); }
+  if(type==="bool") return v ? "Oui" : "Non";
   return String(v);
 }
-// Échappe une cellule CSV
-function cell(x){
-  x = (x===null||x===undefined) ? "" : String(x);
-  if(x.includes(SEP) || x.includes('"') || x.includes("\n")) x = '"' + x.replace(/"/g,'""') + '"';
-  return x;
+// date de référence d'une action (pour le tri) : déclenchement, sinon notification
+function dateAction(a){
+  const d = a.Date_declenchement || a.Date_notification;
+  if(typeof d === "number") return d;
+  return d ? (Date.parse(d)/1000) : Number.POSITIVE_INFINITY;
 }
-const ligne = arr => arr.map(cell).join(SEP);
 
-async function exporter(){
-  el("btn").disabled = true;
-  el("etat").textContent = "Lecture des données…"; el("etat").className = "etat";
+function construireFeuille(entites, champsEntite, actionsParEntite, ctx){
+  const header = champsEntite.map(c=>c.label);
+  for(let n=1;n<=MAX;n++) for(const c of ACTION) header.push("Action "+n+" - "+c.label);
+  header.push("Actions supplémentaires");
+  const rows = [header];
+  for(const e of entites){
+    const row = champsEntite.map(c=>fmt(e[c.id], c.type, ctx));
+    const acts = (actionsParEntite[e.id]||[]).slice().sort((a,b)=>dateAction(a)-dateAction(b));
+    for(let n=0;n<MAX;n++){
+      const a = acts[n];
+      for(const c of ACTION) row.push(a ? fmt(a[c.id], c.type, ctx) : "");
+    }
+    let sup = "";
+    if(acts.length>MAX){
+      sup = acts.slice(MAX).map((a,i)=>{
+        const champs = ACTION.map(c=>{ const val = fmt(a[c.id], c.type, ctx); return (val==="" || val===undefined)?"":(c.label+"="+val); }).filter(x=>x);
+        return "Action "+(MAX+i+1)+" : "+champs.join(", ");
+      }).join("  ||  ");
+    }
+    row.push(sup);
+    rows.push(row);
+  }
+  return rows;
+}
+function largeurs(rows){
+  const w = [];
+  for(let c=0;c<rows[0].length;c++){
+    let m = 10;
+    for(const r of rows){ const len = String(r[c]==null?"":r[c]).length; if(len>m) m = len; }
+    w.push({ wch: Math.min(m+2, 50) });
+  }
+  return w;
+}
+
+async function exporter(mode){
+  busy(true); setEtat("Lecture des données…");
   try{
-    // Récupère entités, contrôles et référentiel des types
-    const [tEnt, tCtrl, tTypes] = await Promise.all([
-      grist.docApi.fetchTable(ENTITE.table),
-      grist.docApi.fetchTable(CTRL.table),
-      grist.docApi.fetchTable(CTRL.typesTable),
+    const [tPM,tPP,tC,tT] = await Promise.all([
+      grist.docApi.fetchTable("PM"),
+      grist.docApi.fetchTable("PP"),
+      grist.docApi.fetchTable("Controles"),
+      grist.docApi.fetchTable("Types_controle_entrave"),
     ]);
-    const entites = toRows(tEnt);
-    const controles = toRows(tCtrl);
-    const typesMap = {}; tTypes.id.forEach((id,i)=>{ typesMap[id] = tTypes[CTRL.typesLibelle][i]; });
+    const PM = toRows(tPM), PP = toRows(tPP), C = toRows(tC);
+    const typesMap = {}; tT.id.forEach((id,i)=>{ typesMap[id] = tT.Libelle[i]; });
+    const resumeMap = {}; C.forEach(c=>{ resumeMap[c.id] = c.Resume; });
+    const ctx = { typesMap, resumeMap };
 
-    const lignes = [];
-    for(const ent of entites){
-      const titre = ent[ENTITE.nomAffiche] || ("#"+ent.id);
-      lignes.push(ligne(["=== ENTITÉ : " + titre + " ==="]));
-      // Infos de l'entité : une ligne de libellés, puis une ligne de valeurs
-      lignes.push(ligne(ENTITE.champs.map(c => c.label)));
-      lignes.push(ligne(ENTITE.champs.map(c => fmt(ent[c.id], c.type, typesMap))));
-      // Contrôles de cette entité
-      const siens = controles.filter(x => x[CTRL.refCol] === ent.id);
-      lignes.push(ligne([""]));
-      lignes.push(ligne(["Contrôles et entraves (" + siens.length + ")"]));
-      lignes.push(ligne(CTRL.champs.map(c=>c.label)));   // en-tête du tableau des contrôles
-      if(siens.length === 0){
-        lignes.push(ligne(["(aucun)"]));
-      } else {
-        for(const ct of siens){
-          lignes.push(ligne(CTRL.champs.map(c => fmt(ct[c.id], c.type, typesMap))));
-        }
-      }
-      lignes.push(ligne([""]));   // séparateur entre entités
-      lignes.push(ligne([""]));
+    const parPM = {}, parPP = {};
+    for(const c of C){
+      if(c.PM){ (parPM[c.PM] = parPM[c.PM]||[]).push(c); }
+      else if(c.PP){ (parPP[c.PP] = parPP[c.PP]||[]).push(c); }
     }
 
-    // Fabrique le fichier (BOM UTF-8 pour les accents dans Excel)
-    const contenu = "\uFEFF" + lignes.join("\r\n");
-    const blob = new Blob([contenu], {type:"text/csv;charset=utf-8;"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const wb = XLSX.utils.book_new();
+    if(mode==="PM" || mode==="TOUT"){
+      const rows = construireFeuille(PM, ENTITE_PM, parPM, ctx);
+      const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = largeurs(rows);
+      XLSX.utils.book_append_sheet(wb, ws, "Personnes morales");
+    }
+    if(mode==="PP" || mode==="TOUT"){
+      const rows = construireFeuille(PP, ENTITE_PP, parPP, ctx);
+      const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = largeurs(rows);
+      XLSX.utils.book_append_sheet(wb, ws, "Personnes physiques");
+    }
     const date = new Date().toISOString().slice(0,10);
-    a.href = url; a.download = "export_" + ENTITE.table + "_" + date + ".csv";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const nom = "export_" + (mode==="TOUT"?"PM_PP":mode) + "_" + date + ".xlsx";
+    XLSX.writeFile(wb, nom);
 
-    el("etat").textContent = "Fichier généré : " + entites.length + " entité(s), " + controles.length + " contrôle(s).";
-    el("etat").className = "etat ok";
+    const nbPM = (mode==="PP")?0:PM.length, nbPP = (mode==="PM")?0:PP.length;
+    setEtat("Fichier généré : " + nom + " (" + (nbPM+nbPP) + " entité(s)).", "ok");
   }catch(err){
     console.error(err);
-    el("etat").textContent = "Erreur : " + (err.message || err);
-    el("etat").className = "etat err";
+    setEtat("Erreur : " + (err.message || err), "err");
   }finally{
-    el("btn").disabled = false;
+    busy(false);
   }
 }
 
 grist.ready({ requiredAccess: "full" });
-el("btn").onclick = exporter;
+el("btnPM").onclick   = ()=> exporter("PM");
+el("btnPP").onclick   = ()=> exporter("PP");
+el("btnTout").onclick = ()=> exporter("TOUT");
 </script>
 </body>
 </html>
