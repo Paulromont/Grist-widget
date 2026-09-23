@@ -338,6 +338,8 @@ async function enregistrer(){
     const actions = [];
     controlesActuels.forEach((ctrl, idx)=>{
       const fields = { [CONTROLES.refCol]: recordActuel.id };
+      // une entrave a sa Nature masquée : on la force pour ne pas la perdre à l'enregistrement
+      if(ctrl[CONTROLES.natureCol] === CONTROLES.natureEntrave) fields[CONTROLES.natureCol] = CONTROLES.natureEntrave;
       for(const c of CONTROLES.champs){
         const v = lireChamp(c, "ctrl"+idx+"_"); if(v!==undefined) fields[c.id]=v;
       }
