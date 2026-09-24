@@ -66,38 +66,38 @@
 
 <script>
 const SECTIONS = [
-  {id:"Dates_passage_CLIR",  label:"Dates de passage en CLIR", type:"text"},
   { titre:"Présentation de l'entité", champs:[
-    {id:"Pseudonyme",       label:"Pseudonyme", type:"text"},
     {id:"Etat_du_dossier",  label:"État du dossier", type:"choice"},
     {id:"Affiliation",      label:"Affiliation", type:"choice"},
     {id:"Mouvance",         label:"Mouvance", type:"choice"},
-    {id:"Objectif",         label:"Objectif d'intérêt local / national", type:"choice", large:true},
+    {id:"Pseudonyme",       label:"Pseudonyme", type:"text"},
+    {id:"Objectif",         label:"Objectif d'intérêt local / national", type:"choice"},
     {id:"Ville",            label:"Ville", type:"text"},
     {id:"Autres_adresses",  label:"Autres adresses de l'entité", type:"text"},
-    {id:"Date_creation",    label:"Date de création de la structure", type:"date"},
     {id:"Statut_juridique", label:"Statut juridique", type:"choice"},
+    {id:"Date_creation",    label:"Date de création de la structure", type:"date"},
     {id:"Numero_RNA",       label:"Numéro RNA", type:"text"},
     {id:"Numero_SIRET",     label:"Numéro SIRET", type:"text"},
   ]},
   { titre:"Domaine d'activité", champs:[
     {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne", type:"choice"},
-    {id:"Domaine_declare_1", label:"Domaine(s) d'activité(s) déclaré(s) (Choix multiple possible)", type:"choicelist"},
-    {id:"Domaine_reel_2",    label:"Domaine(s) d'activité(s) réel(s) (Choix multiple possible)", type:"choicelist"},
+    {id:"Domaine_declare_1", label:"Domaines d'activités déclarés", type:"choicelist"},
+    {id:"Domaine_reel_2",    label:"Domaines d'activités réels", type:"choicelist"},
   ]},
   { titre:"Signalement d'origine", champs:[
     {id:"Date_signalement",       label:"Date du signalement d'origine", type:"date"},
     {id:"Service_signalant",      label:"Service signalant", type:"choice"},
     {id:"Contenu_signalement",    label:"Contenu du signalement", type:"textarea", large:true},
-    {id:"Commentaire_signalement",label:"Commentaires", type:"textarea", large:true},
+    {id:"Commentaire_signalement",label:"Commentaire", type:"textarea", large:true},
   ]},
   { titre:"Éléments de contexte", champs:[
     {id:"Dirigeants",          label:"Dirigeants", type:"textarea"},
     {id:"Personnels_benevoles",label:"Personnels bénévoles", type:"textarea"},
-    {id:"Personnes_liees_txt", label:"Personne(s) morale(s) et/ou physique(s) liée(s)", type:"textarea"},
-    {id:"Fonctions",           label:"Fonction(s) (noms, nature des liens, suivi en CLIR...)", type:"textarea"},
+    {id:"Personnes_liees_txt", label:"Personnes morales et/ou physiques liées", type:"textarea"},
+    {id:"Fonctions",           label:"Fonctions (noms, nature des liens, suivi en CLIR...)", type:"textarea"},
     {id:"Points_vigilance",    label:"Points de vigilance", type:"textarea"},
     {id:"Projet_controle",     label:"Projet de contrôle", type:"textarea"},
+    {id:"Dates_passage_CLIR",  label:"Dates de passage en CLIR", type:"text"},
     {id:"Champs_libre",        label:"Champs libre (autres éléments de contexte)", type:"textarea", large:true},
   ]},
 ];
@@ -111,8 +111,8 @@ const CONTROLES = {
   champs:[
     {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
     {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},
-    {id:"Type_controle",       label:"Type de contrôle", type:"reftype", large:true},
-    {id:"Type_libre",          label:"Type (saisie libre)", type:"text", large:true},
+    {id:"Type_controle",       label:"Type de contrôle", type:"reftype"},
+    {id:"Type_libre",          label:"Type (saisie libre)", type:"text"},
     {id:"Date_declenchement",  label:"Date de déclenchement", type:"date", ctrlOnly:true},
     {id:"Date_cloture",        label:"Date de clôture", type:"date", ctrlOnly:true},
     {id:"Date_notification",   label:"Date de notification", type:"date", entraveOnly:true},
