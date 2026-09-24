@@ -17,7 +17,7 @@
        color:var(--txt); margin:0; padding:16px; background:#fff; font-size:14px;}
   h2.section{font-size:14px; font-weight:600; color:#fff; background:var(--bleu);
              padding:6px 12px; border-radius:6px; margin:22px 0 12px;}
-  .grille{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px 18px;}
+  .grille{display:grid; grid-template-columns:1fr 1fr; gap:12px 17px;}
   .champ{display:flex; flex-direction:column; gap:4px;}
   .champ.large{grid-column:1 / -1;}
   label{font-size:12px; color:var(--muet);}
@@ -50,6 +50,18 @@
   .multi.ouvert .multi-liste{display:block;}
   .multi .case{display:flex; align-items:center; gap:8px; padding:4px 6px; cursor:pointer;}
   .multi .case:hover{background:var(--gris);}
+  .bandeau{background:var(--bleu-clair); border-radius:8px; padding:10px 12px; margin-top:14px;}
+  .liees-bloc{margin:4px 0 14px;}
+  .liees-titre{font-size:12px; color:var(--muet); margin-bottom:4px;}
+  table.liees{width:100%; border-collapse:collapse; background:#fff;}
+  table.liees th{font-size:12px; font-weight:500; text-align:left; background:var(--bleu-clair);
+     color:var(--bleu); padding:6px 8px; border:1px solid var(--bord);}
+  table.liees td{border:1px solid var(--bord); padding:3px;}
+  table.liees td input{border:none; padding:5px 6px;}
+  table.liees td.centre{text-align:center; width:110px;}
+  table.liees td.act{width:44px; text-align:center;}
+  table.liees td.vide{text-align:center; border:1px solid var(--bord);}
+  button.petit{padding:4px 12px; margin-top:6px; font-size:13px;}
 </style>
 </head>
 <body>
@@ -66,6 +78,9 @@
 
 <script>
 const SECTIONS = [
+  { titre:null, champs:[
+    {id:"Dates_de_passage_en_CLIR", label:"Date de passage en CLIR", type:"date"},
+  ]},
   { titre:"Identité de la personne", champs:[
     {id:"Pseudonyme",   label:"Pseudonyme", type:"text"},
     {id:"sexe",         label:"Sexe", type:"choice"},
@@ -73,7 +88,7 @@ const SECTIONS = [
     {id:"Etat_du_dossier", label:"État du dossier", type:"choice"},
     {id:"Affiliation",  label:"Affiliation", type:"choice"},
     {id:"Mouvance",     label:"Mouvance", type:"choice"},
-    {id:"Objectif",     label:"Objectif d'intérêt local / national", type:"choice"},
+    {id:"Objectif",     label:"Objectif d'intérêt local / national", type:"choice", large:true},
     {id:"Ville",        label:"Ville", type:"text"},
     {id:"Activite_s_justfiant_le_suivi", label:"Activité(s) justifiant le suivi", type:"choicelist"},
   ]},
@@ -84,17 +99,30 @@ const SECTIONS = [
     {id:"commentaires",        label:"Commentaires", type:"textarea", large:true},
   ]},
   { titre:"Éléments de contexte", champs:[
-    {id:"Dirigeants",          label:"Dirigeants", type:"textarea"},
-    {id:"Personnels_benevoles",label:"Personnels bénévoles", type:"textarea"},
-    {id:"Personne_s_morale_ou_physique_liee", label:"Personne(s) morale ou physique liée", type:"textarea"},
-    {id:"Fonctions_Noms_nature_des_liens_suivi_en_CLIR_", label:"Fonctions (noms, nature des liens, suivi en CLIR…)", type:"textarea"},
-    {id:"Projet_de_controle",  label:"Projet de contrôle", type:"textarea"},
-    {id:"Dates_de_passage_en_CLIR", label:"Dates de passage en CLIR", type:"date"},
+    {bloc:"liees"},
     {id:"Points_vigilance",    label:"Points de vigilance", type:"textarea"},
+    {id:"Projet_de_controle",  label:"Projets de contrôle", type:"textarea"},
     {id:"Champs_libre",        label:"Champs libre (autres éléments de contexte)", type:"textarea", large:true},
   ]},
 ];
 const TABLE_ENTITE = "PP";
+
+const LIEES = {
+  table:"Personnes_liees", refCol:"PP", typeCol:"Type_personne",
+  groupes:[
+    { type:"Morale", titre:"Personnes morales liées", cols:[
+      {id:"Nom", label:"Nom", type:"text"},
+      {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
+      {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
+    ]},
+    { type:"Physique", titre:"Personnes physiques liées", cols:[
+      {id:"Nom", label:"Nom", type:"text"},
+      {id:"Fonctions", label:"Fonctions", type:"text"},
+      {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
+      {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
+    ]},
+  ]
+};
 
 const CONTROLES = {
   table:"Controles", refCol:"PP",
@@ -104,8 +132,8 @@ const CONTROLES = {
   champs:[
     {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
     {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},
-    {id:"Type_controle",       label:"Type de contrôle", type:"reftype"},
-    {id:"Type_libre",          label:"Type (saisie libre)", type:"text"},
+    {id:"Type_controle",       label:"Type de contrôle", type:"reftype", large:true},
+    {id:"Type_libre",          label:"Type (saisie libre)", type:"text", large:true},
     {id:"Date_declenchement",  label:"Date de déclenchement", type:"date", ctrlOnly:true},
     {id:"Date_cloture",        label:"Date de clôture", type:"date", ctrlOnly:true},
     {id:"Date_notification",   label:"Date de notification", type:"date", entraveOnly:true},
@@ -264,8 +292,9 @@ function rendre(){
   if(!recordActuel){ el("contenu").innerHTML = `<p class="vide">Aucune fiche s\u00e9lectionn\u00e9e.</p>`; return; }
   let html = "";
   for(const sec of SECTIONS){
-    html += `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">`;
+    html += sec.titre ? `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">` : `<div class="grille bandeau">`;
     for(const c of sec.champs){
+      if(c.bloc==="liees"){ html += `</div><div id="zoneLiees"></div><div class="grille">`; continue; }
       html += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
     }
     html += `</div>`;
@@ -275,6 +304,7 @@ function rendre(){
   html += `<h2 class="section">Actions d'entrave</h2><div id="zoneEntrave"></div>
            <button class="sec" id="btnAddEntrave">+ Ajouter une entrave</button>`;
   el("contenu").innerHTML = html;
+  rendreLiees();
   rendreControles();
   el("btnAddCtrl").onclick = ajouterControle;
   el("btnAddEntrave").onclick = ajouterEntrave;
@@ -353,7 +383,7 @@ async function enregistrer(){
   try{
     const champsPM = {};
     for(const sec of SECTIONS) for(const c of sec.champs){
-      if(c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
+      if(c.bloc || c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
       const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
     }
     await grist.selectedTable.update({ id: recordActuel.id, fields: champsPM });
@@ -371,6 +401,7 @@ async function enregistrer(){
     (window._ctrlOrigIds||[]).forEach(id=>{
       if(!controlesActuels.some(c=>c.id===id)) actions.push(["RemoveRecord", CONTROLES.table, id]);
     });
+    actions.push(...actionsLiees());
     if(actions.length) await grist.docApi.applyUserActions(actions);
     modifie=false; el("btnAnnuler").disabled=true;
     el("etat").textContent = "Enregistr\u00e9 \u2713"; el("etat").className="etat ok";
@@ -397,12 +428,15 @@ function imprimerFiche(){
   const titre = "Fiche : " + (recordActuel.Pseudonyme || recordActuel.Mouvance || ("#"+recordActuel.id));
   let corps = "";
   for(const sec of SECTIONS){
-    let lignes = "";
+    let bloc = "", lignes = "";
+    const vider = ()=>{ if(lignes){ bloc += `<table class="ch">${lignes}</table>`; lignes = ""; } };
     for(const c of sec.champs){
+      if(c.bloc==="liees"){ vider(); bloc += lieesImpression(); continue; }
       const v = valeurAffichee(c, recordActuel[c.id]);
       if(v!=="") lignes += `<tr><td class="lbl">${esc(c.label)}</td><td>${esc(v)}</td></tr>`;
     }
-    if(lignes) corps += `<h2>${esc(sec.titre)}</h2><table class="ch">${lignes}</table>`;
+    vider();
+    if(bloc) corps += sec.titre ? `<h2>${esc(sec.titre)}</h2>${bloc}` : bloc;
   }
   corps += `<h2>Contr\u00f4les et entraves</h2>`;
   if(!controlesActuels.length){ corps += `<p><i>Aucun contr\u00f4le.</i></p>`; }
@@ -433,12 +467,103 @@ function imprimerFiche(){
       table.ch{width:100%; border-collapse:collapse; margin-bottom:8px;}
       table.ch td{border:0.5px solid #ccc; padding:4px 6px; vertical-align:top;}
       td.lbl{width:32%; color:#555; background:#f4f5f7;}
+      table.lie{width:100%; border-collapse:collapse; margin-bottom:8px;}
+      table.lie th{background:#E6F1FB; color:#1F4E79; text-align:left; font-weight:600; border:0.5px solid #ccc; padding:4px 6px;}
+      table.lie td{border:0.5px solid #ccc; padding:4px 6px;}
       @media print{ body{margin:0;} }
     </style></head><body><h1>${esc(titre)}</h1>${corps}</body></html>`;
   const w = window.open("", "_blank");
   if(!w){ alert("Autorise les fen\u00eatres pop-up pour pouvoir imprimer."); return; }
   w.document.write(html); w.document.close(); w.focus();
   setTimeout(()=>w.print(), 300);
+}
+
+/* ---------- Personnes liées (table Personnes_liees) ---------- */
+let lieesActuelles = [];
+let lieesDispo = true;
+async function chargerLiees(entiteId){
+  try{
+    const t = await grist.docApi.fetchTable(LIEES.table);
+    lieesDispo = true;
+    lieesActuelles = t.id.map((id,i)=>{
+      const o={id}; Object.keys(t).forEach(c=>{ if(c!=="id") o[c]=t[c][i]; }); return o;
+    }).filter(r => r[LIEES.refCol]===entiteId);
+  }catch(e){
+    console.warn("Table Personnes_liees indisponible :", e);
+    lieesDispo = false; lieesActuelles = [];
+  }
+}
+function capturerLiees(){
+  lieesActuelles.forEach((p, idx)=>{
+    const g = LIEES.groupes.find(x=>x.type===p[LIEES.typeCol]); if(!g) return;
+    for(const c of g.cols){
+      const n = document.getElementById("lie"+idx+"_"+c.id); if(!n) continue;
+      p[c.id] = c.type==="bool" ? n.checked : n.value;
+    }
+  });
+}
+function rendreLiees(){
+  const z = el("zoneLiees"); if(!z) return;
+  if(!lieesDispo){
+    z.innerHTML = `<p class="etat err">Table \u00ab ${LIEES.table} \u00bb introuvable dans le document (ou non accessible) : cr\u00e9e-la pour activer les personnes li\u00e9es.</p>`;
+    return;
+  }
+  let html = "";
+  for(const g of LIEES.groupes){
+    let lignes = "";
+    lieesActuelles.forEach((p, idx)=>{
+      if(p[LIEES.typeCol]!==g.type) return;
+      lignes += "<tr>" + g.cols.map(c=>{
+        const nom = "lie"+idx+"_"+c.id;
+        if(c.type==="bool") return `<td class="centre"><input type="checkbox" id="${nom}" style="width:auto;height:18px;" ${p[c.id]?"checked":""}></td>`;
+        return `<td><input id="${nom}" value="${esc(p[c.id]||"")}"></td>`;
+      }).join("") + `<td class="act"><button class="lien" title="Supprimer" data-suplie="${idx}">\u2715</button></td></tr>`;
+    });
+    if(!lignes) lignes = `<tr><td class="vide" colspan="${g.cols.length+1}">Aucune</td></tr>`;
+    html += `<div class="liees-bloc"><div class="liees-titre">${esc(g.titre)}</div>
+      <table class="liees"><thead><tr>${g.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}<th></th></tr></thead>
+      <tbody>${lignes}</tbody></table>
+      <button class="sec petit" data-addlie="${esc(g.type)}">+ Ajouter</button></div>`;
+  }
+  z.innerHTML = html;
+  z.querySelectorAll("[data-suplie]").forEach(b=> b.onclick = ()=>{
+    capturerLiees(); lieesActuelles.splice(Number(b.dataset.suplie),1); marquerModifie(); rendreLiees();
+  });
+  z.querySelectorAll("[data-addlie]").forEach(b=> b.onclick = ()=>{
+    capturerLiees();
+    const g = LIEES.groupes.find(x=>x.type===b.dataset.addlie);
+    const vide = {id:null, [LIEES.refCol]:recordActuel.id, [LIEES.typeCol]:g.type};
+    g.cols.forEach(c=> vide[c.id] = c.type==="bool" ? false : "");
+    lieesActuelles.push(vide); marquerModifie(); rendreLiees();
+  });
+}
+function actionsLiees(){
+  if(!lieesDispo) return [];
+  capturerLiees();
+  const actions = [];
+  lieesActuelles.forEach(p=>{
+    const g = LIEES.groupes.find(x=>x.type===p[LIEES.typeCol]); if(!g) return;
+    const fields = { [LIEES.refCol]: recordActuel.id, [LIEES.typeCol]: g.type };
+    g.cols.forEach(c=> fields[c.id] = c.type==="bool" ? !!p[c.id] : (p[c.id]||""));
+    const videTotal = g.cols.every(c=> c.type==="bool" ? !p[c.id] : !String(p[c.id]||"").trim());
+    if(p.id) actions.push(["UpdateRecord", LIEES.table, p.id, fields]);
+    else if(!videTotal) actions.push(["AddRecord", LIEES.table, null, fields]);
+  });
+  (window._lieesOrigIds||[]).forEach(id=>{
+    if(!lieesActuelles.some(p=>p.id===id)) actions.push(["RemoveRecord", LIEES.table, id]);
+  });
+  return actions;
+}
+function lieesImpression(){
+  let h = "";
+  for(const g of LIEES.groupes){
+    const rows = lieesActuelles.filter(p=>p[LIEES.typeCol]===g.type);
+    if(!rows.length) continue;
+    h += `<h3>${esc(g.titre)}</h3><table class="lie"><tr>${g.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr>` +
+      rows.map(p=>"<tr>"+g.cols.map(c=>`<td>${c.type==="bool"?(p[c.id]?"Oui":"Non"):esc(p[c.id]||"")}</td>`).join("")+"</tr>").join("") +
+      `</table>`;
+  }
+  return h;
 }
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
@@ -448,6 +573,8 @@ async function chargerFiche(rec){
   el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
   await chargerControles(rec.id);
   window._ctrlOrigIds = controlesActuels.map(c=>c.id);
+  await chargerLiees(rec.id);
+  window._lieesOrigIds = lieesActuelles.map(p=>p.id);
   modifie=false; el("btnEnregistrer").disabled=true; el("btnAnnuler").disabled=true; el("etat").textContent="";
   rendre();
 }
