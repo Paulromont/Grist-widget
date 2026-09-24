@@ -71,7 +71,7 @@ const SECTIONS = [
     {id:"Affiliation",      label:"Affiliation", type:"choice"},
     {id:"Mouvance",         label:"Mouvance", type:"choice"},
     {id:"Pseudonyme",       label:"Pseudonyme", type:"text"},
-    {id:"Objectif",         label:"Objectif d'intérêt local / national", type:"choice"},
+    {id:"Objectif",         label:"Objectif d'intérêt local / national", type:"choice", large:true},
     {id:"Ville",            label:"Ville", type:"text"},
     {id:"Autres_adresses",  label:"Autres adresses de l'entité", type:"text"},
     {id:"Statut_juridique", label:"Statut juridique", type:"choice"},
@@ -80,7 +80,7 @@ const SECTIONS = [
     {id:"Numero_SIRET",     label:"Numéro SIRET", type:"text"},
   ]},
   { titre:"Domaine d'activité", champs:[
-    {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne", type:"choice"},
+    {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne", type:"choice", large:true},
     {id:"Domaine_declare_1", label:"Domaines d'activités déclarés", type:"choicelist"},
     {id:"Domaine_reel_2",    label:"Domaines d'activités réels", type:"choicelist"},
   ]},
@@ -111,8 +111,8 @@ const CONTROLES = {
   champs:[
     {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
     {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},
-    {id:"Type_controle",       label:"Type de contrôle", type:"reftype"},
-    {id:"Type_libre",          label:"Type (saisie libre)", type:"text"},
+    {id:"Type_controle",       label:"Type de contrôle", type:"reftype", large:true},
+    {id:"Type_libre",          label:"Type (saisie libre)", type:"text", large:true},
     {id:"Date_declenchement",  label:"Date de déclenchement", type:"date", ctrlOnly:true},
     {id:"Date_cloture",        label:"Date de clôture", type:"date", ctrlOnly:true},
     {id:"Date_notification",   label:"Date de notification", type:"date", entraveOnly:true},
