@@ -119,14 +119,15 @@ const TABLE_ENTITE = "PM";
 const LIEES = {
   table:"Personnes_liees", refCol:"PM", typeCol:"Type_personne",
   groupes:[
-    { type:"Morale", titre:"Personnes morales liées", cols:[
-      {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
-      {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
-      {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
-    ]},
     { type:"Physique", titre:"Personnes physiques liées", cols:[
       {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
       {id:"Fonctions", label:"Fonctions", type:"text"},
+      {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
+      {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
+    ]},
+    { type:"Morale", titre:"Personnes morales liées", cols:[
+      {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
+      {id:"Activites_reelles", label:"Activités réelles", type:"text"},
       {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
       {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
     ]},
