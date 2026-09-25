@@ -56,11 +56,11 @@ const ENTITE_PM = [
   {id:"Commentaire_signalement",label:"Commentaire",type:"text"},
   {id:"Dirigeants",label:"Dirigeants",type:"text"},
   {id:"Personnels_benevoles",label:"Personnels bénévoles",type:"text"},
-  {id:"Personnes_liees_txt",label:"Personnes liées",type:"text"},
-  {id:"Fonctions",label:"Fonctions",type:"text"},
+  {id:"_liees_Physique",label:"Personnes physiques liées",type:"liees",ref:"PM",groupe:"Physique"},
+  {id:"_liees_Morale",label:"Personnes morales liées",type:"liees",ref:"PM",groupe:"Morale"},
   {id:"Points_vigilance",label:"Points de vigilance",type:"text"},
   {id:"Projet_controle",label:"Projet de contrôle",type:"text"},
-  {id:"Dates_passage_CLIR",label:"Dates de passage en CLIR",type:"text"},
+  {id:"Dates_passage_CLIR",label:"Dates de passage en CLIR",type:"date"},
   {id:"Champs_libre",label:"Champs libre",type:"text"},
 ];
 
@@ -79,10 +79,8 @@ const ENTITE_PP = [
   {id:"Service_signalant",label:"Service signalant",type:"text"},
   {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
   {id:"commentaires",label:"Commentaires",type:"text"},
-  {id:"Dirigeants",label:"Dirigeants",type:"text"},
-  {id:"Personnels_benevoles",label:"Personnels bénévoles",type:"text"},
-  {id:"Personne_s_morale_ou_physique_liee",label:"Personne(s) liée(s)",type:"text"},
-  {id:"Fonctions_Noms_nature_des_liens_suivi_en_CLIR_",label:"Fonctions (CLIR)",type:"text"},
+  {id:"_liees_Physique",label:"Personnes physiques liées",type:"liees",ref:"PP",groupe:"Physique"},
+  {id:"_liees_Morale",label:"Personnes morales liées",type:"liees",ref:"PP",groupe:"Morale"},
   {id:"Projet_de_controle",label:"Projet de contrôle",type:"text"},
   {id:"Dates_de_passage_en_CLIR",label:"Dates de passage en CLIR",type:"date"},
   {id:"Points_vigilance",label:"Points de vigilance",type:"text"},
@@ -108,6 +106,19 @@ const ACTION = [
   {id:"Controles_origine",label:"Contrôle(s) à l'origine",type:"reflist"},
   {id:"Commentaires",label:"Commentaires",type:"text"},
 ];
+// Personnes liées (table Personnes_liees) : sous-champs repris dans la cellule, par type de personne
+const LIEES_CHAMPS = {
+  Physique: [
+    {id:"Fonctions",label:"Fonctions",type:"text"},
+    {id:"Nature_des_liens",label:"Nature des liens",type:"text"},
+    {id:"Suivi_CLIR",label:"Suivi en CLIR",type:"bool"},
+  ],
+  Morale: [
+    {id:"Activites_reelles",label:"Activités réelles",type:"text"},
+    {id:"Nature_des_liens",label:"Nature des liens",type:"text"},
+    {id:"Suivi_CLIR",label:"Suivi en CLIR",type:"bool"},
+  ],
+};
 /* ========================= */
 
 const el = id => document.getElementById(id);
@@ -133,6 +144,19 @@ function fmt(v, type, ctx){
   if(type==="bool") return v ? "Oui" : "Non";
   return String(v);
 }
+// Une cellule par type de personne liée : une personne par ligne dans la cellule
+// ex. « Dupont — Fonctions : trésorier — Nature des liens : fondateur — Suivi en CLIR : Oui »
+function fmtLiees(e, c, ctx){
+  const liste = ((ctx.liees[c.ref]||{})[e.id]||{})[c.groupe] || [];
+  return liste.map(p=>{
+    const morceaux = [ (p.Pseudonyme||"").trim() || "(sans pseudonyme)" ];
+    for(const f of LIEES_CHAMPS[c.groupe]){
+      const v = fmt(p[f.id], f.type, ctx);
+      if(v!=="" && !(f.type==="bool" && v==="Non")) morceaux.push(f.label+" : "+v);
+    }
+    return morceaux.join(" — ");
+  }).join("\n");
+}
 // date de référence d'une action (pour le tri) : déclenchement, sinon notification
 function dateAction(a){
   const d = a.Date_declenchement || a.Date_notification;
@@ -146,7 +170,7 @@ function construireFeuille(entites, champsEntite, actionsParEntite, ctx){
   header.push("Actions supplémentaires");
   const rows = [header];
   for(const e of entites){
-    const row = champsEntite.map(c=>fmt(e[c.id], c.type, ctx));
+    const row = champsEntite.map(c=> c.type==="liees" ? fmtLiees(e, c, ctx) : fmt(e[c.id], c.type, ctx));
     const acts = (actionsParEntite[e.id]||[]).slice().sort((a,b)=>dateAction(a)-dateAction(b));
     for(let n=0;n<MAX;n++){
       const a = acts[n];
@@ -168,7 +192,7 @@ function largeurs(rows){
   const w = [];
   for(let c=0;c<rows[0].length;c++){
     let m = 10;
-    for(const r of rows){ const len = String(r[c]==null?"":r[c]).length; if(len>m) m = len; }
+    for(const r of rows){ const len = Math.max(...String(r[c]==null?"":r[c]).split("\n").map(x=>x.length)); if(len>m) m = len; }
     w.push({ wch: Math.min(m+2, 50) });
   }
   return w;
@@ -177,16 +201,26 @@ function largeurs(rows){
 async function exporter(mode){
   busy(true); setEtat("Lecture des données…");
   try{
-    const [tPM,tPP,tC,tT] = await Promise.all([
+    const [tPM,tPP,tC,tT,tL] = await Promise.all([
       grist.docApi.fetchTable("PM"),
       grist.docApi.fetchTable("PP"),
       grist.docApi.fetchTable("Controles"),
       grist.docApi.fetchTable("Types_controle_entrave"),
+      grist.docApi.fetchTable("Personnes_liees").catch(()=>null),  // l'export marche même si la table est inaccessible
     ]);
     const PM = toRows(tPM), PP = toRows(tPP), C = toRows(tC);
     const typesMap = {}; tT.id.forEach((id,i)=>{ typesMap[id] = tT.Libelle[i]; });
     const resumeMap = {}; C.forEach(c=>{ resumeMap[c.id] = c.Resume; });
-    const ctx = { typesMap, resumeMap };
+    // liees[PM|PP][id de la fiche][Physique|Morale] = [personnes], dans l'ordre de saisie
+    const liees = { PM:{}, PP:{} };
+    for(const p of (tL ? toRows(tL) : [])){
+      if(!p.Type_personne) continue;
+      const ref = p.PM ? "PM" : (p.PP ? "PP" : null);
+      if(!ref) continue;
+      const fiche = liees[ref][p[ref]] = liees[ref][p[ref]] || {};
+      (fiche[p.Type_personne] = fiche[p.Type_personne] || []).push(p);
+    }
+    const ctx = { typesMap, resumeMap, liees };
 
     const parPM = {}, parPP = {};
     for(const c of C){
