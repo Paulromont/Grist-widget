@@ -120,12 +120,12 @@ const LIEES = {
   table:"Personnes_liees", refCol:"PM", typeCol:"Type_personne",
   groupes:[
     { type:"Morale", titre:"Personnes morales liées", cols:[
-      {id:"Nom", label:"Nom", type:"text"},
+      {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
       {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
       {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
     ]},
     { type:"Physique", titre:"Personnes physiques liées", cols:[
-      {id:"Nom", label:"Nom", type:"text"},
+      {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
       {id:"Fonctions", label:"Fonctions", type:"text"},
       {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
       {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
@@ -327,6 +327,19 @@ function catEstLibre(cat){
   const r = catRows.find(x => x.libelle === cat);
   return r ? !!r.libre : false;
 }
+// Mise en page des blocs contrôle / entrave (grille 2 colonnes)
+function largeurCtrl(c, estEntrave, cat){
+  if(estEntrave){
+    // entrave : pas de Nature affichée -> Catégorie et Type côte à côte
+    if(c.id === "Type_controle" || c.id === "Type_libre") return false;
+    // Date de notification seule sur sa ligne, sauf si la Durée doit s'afficher à côté
+    if(c.id === "Date_notification"){
+      const duree = CONTROLES.champs.find(x => x.id === "Duree_jours");
+      return !(duree && duree.cats && duree.cats.includes(cat));
+    }
+  }
+  return !!c.large;
+}
 function rendreControles(depuisChangement){
   const zC = el("zoneCtrl"), zE = el("zoneEntrave");
   if(!zC && !zE) return;
@@ -345,7 +358,7 @@ function rendreControles(depuisChangement){
       if(c.cats && !c.cats.includes(cat)) continue;
       if(c.id === "Type_controle" && catEstLibre(cat)) continue;
       if(c.id === "Type_libre" && !catEstLibre(cat)) continue;
-      h += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
+      h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
     }
     h += `</div></div>`;
     if(estEntrave) htmlE += h; else htmlC += h;
