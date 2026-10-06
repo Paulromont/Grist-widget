@@ -11,6 +11,7 @@
     --vert:#EAF3DE; --vert-txt:#3B6D11;
     --gris:#F4F5F7; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
   }
+  html{color-scheme:light !important;}
   *{box-sizing:border-box;}
   body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
        color:var(--txt); margin:0; padding:16px; background:#fff; font-size:13px;}
@@ -18,16 +19,16 @@
   .barre h1{font-size:17px; margin:0 12px 0 0; color:var(--bleu);}
   .annee{display:flex; align-items:center; gap:4px;}
   .annee span{font-weight:600; font-size:15px; min-width:48px; text-align:center;}
-  button{font:inherit; border:1px solid var(--bord); background:#fff; border-radius:6px;
+  button{font:inherit; color:var(--txt); border:1px solid var(--bord); background:#fff; border-radius:6px;
          padding:5px 10px; cursor:pointer;}
   button:hover{background:var(--gris);}
   button.prim{background:var(--bleu); color:#fff; border-color:var(--bleu);}
   button.danger{color:#A32D2D;}
-  select, input{font:inherit; padding:5px 8px; border:1px solid var(--bord); border-radius:6px;}
+  select, input{font:inherit; color:var(--txt); background:#fff; padding:5px 8px; border:1px solid var(--bord); border-radius:6px;}
   #etat{color:var(--muet); font-size:12px;}
   #etat.err{color:#A32D2D;}
   .blocs{display:flex; flex-direction:column; gap:22px;}
-  h2{font-size:13px; font-weight:600; color:#fff; background:var(--bleu);
+  h2.titre{font-size:13px; font-weight:600; color:#fff; background:var(--bleu);
      padding:5px 10px; border-radius:6px 6px 0 0; margin:0; text-align:center;}
   .defile{overflow-x:auto;}
   table{border-collapse:collapse; width:100%; table-layout:fixed; min-width:900px;}
@@ -60,7 +61,7 @@
   @media print{
     .barre button, .barre select, #etat, .aide{display:none;}
     body{padding:0;}
-    h2, thead th, th.lig, td.ok{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    h2.titre, thead th, th.lig, td.ok{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
     table{min-width:0;}
   }
 </style>
@@ -81,12 +82,12 @@
 
 <div class="blocs">
   <div>
-    <h2>Planning des CLIR de l'année</h2>
+    <h2 class="titre">Planning des CLIR de l'année</h2>
     <div class="defile"><table id="planning"></table></div>
     <p class="aide">Cliquez dans une case vide d'un mois pour ajouter une séance, ou sur une séance pour la modifier.</p>
   </div>
   <div>
-    <h2>Partenaires présents à au moins une CLIR pendant le mois</h2>
+    <h2 class="titre">Partenaires présents à au moins une CLIR pendant le mois</h2>
     <div class="defile"><table id="partenaires"></table></div>
     <p class="aide">Rempli automatiquement à partir des partenaires cochés sur chaque séance.</p>
   </div>
