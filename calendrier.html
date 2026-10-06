@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Calendrier CLIR — widget Grist</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+  :root{
+    --bleu:#1F4E79; --bleu-clair:#E6F1FB;
+    --vert:#EAF3DE; --vert-txt:#3B6D11;
+    --gris:#F4F5F7; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       color:var(--txt); margin:0; padding:16px; background:#fff; font-size:13px;}
+  .barre{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .barre h1{font-size:17px; margin:0 12px 0 0; color:var(--bleu);}
+  .annee{display:flex; align-items:center; gap:4px;}
+  .annee span{font-weight:600; font-size:15px; min-width:48px; text-align:center;}
+  button{font:inherit; border:1px solid var(--bord); background:#fff; border-radius:6px;
+         padding:5px 10px; cursor:pointer;}
+  button:hover{background:var(--gris);}
+  button.prim{background:var(--bleu); color:#fff; border-color:var(--bleu);}
+  button.danger{color:#A32D2D;}
+  select, input{font:inherit; padding:5px 8px; border:1px solid var(--bord); border-radius:6px;}
+  #etat{color:var(--muet); font-size:12px;}
+  #etat.err{color:#A32D2D;}
+  .blocs{display:flex; flex-direction:column; gap:22px;}
+  h2{font-size:13px; font-weight:600; color:#fff; background:var(--bleu);
+     padding:5px 10px; border-radius:6px 6px 0 0; margin:0; text-align:center;}
+  .defile{overflow-x:auto;}
+  table{border-collapse:collapse; width:100%; table-layout:fixed; min-width:900px;}
+  th, td{border:1px solid var(--bord); padding:0; text-align:center; vertical-align:middle;}
+  thead th{background:var(--bleu-clair); color:var(--bleu); font-weight:600; padding:5px 2px; font-size:12px;}
+  th.lig{background:var(--bleu-clair); color:var(--bleu); font-weight:600; text-align:right;
+         padding:3px 8px; width:150px; font-size:12px;}
+  td.seance{height:42px; cursor:pointer;}
+  td.seance:hover{background:var(--gris);}
+  td.seance .d{font-size:12px;}
+  td.seance .t{font-size:11px; color:var(--bleu); font-weight:600;}
+  td.seance.vide .plus{color:var(--bord); font-size:16px; visibility:hidden;}
+  td.seance.vide:hover .plus{visibility:visible; color:var(--muet);}
+  td.ok{background:var(--vert); color:var(--vert-txt); font-weight:700; font-size:14px;}
+  td.part{height:24px;}
+  .aide{color:var(--muet); font-size:12px; margin:6px 0 0;}
+  /* fenêtre d'édition */
+  #voile{position:fixed; inset:0; background:rgba(0,0,0,.35); display:none;
+         align-items:flex-start; justify-content:center; padding-top:40px; z-index:10;}
+  #voile.ouvert{display:flex;}
+  .modale{background:#fff; border-radius:10px; padding:16px 18px; width:min(520px,94vw);
+          box-shadow:0 8px 30px rgba(0,0,0,.2);}
+  .modale h3{margin:0 0 12px; color:var(--bleu); font-size:15px;}
+  .champ{display:flex; flex-direction:column; gap:4px; margin-bottom:12px;}
+  .champ label{font-size:12px; color:var(--muet);}
+  .cases{display:grid; grid-template-columns:repeat(3,1fr); gap:4px 10px;}
+  .cases label{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--txt); cursor:pointer;}
+  .actions{display:flex; gap:8px; justify-content:flex-end; margin-top:6px;}
+  .actions .gauche{margin-right:auto;}
+  @media print{
+    .barre button, .barre select, #etat, .aide{display:none;}
+    body{padding:0;}
+    h2, thead th, th.lig, td.ok{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    table{min-width:0;}
+  }
+</style>
+</head>
+<body>
+
+<div class="barre">
+  <h1>Calendrier des CLIR</h1>
+  <select id="dept" style="display:none" title="Département affiché"></select>
+  <div class="annee">
+    <button id="prec" title="Année précédente">‹</button>
+    <span id="an"></span>
+    <button id="suiv" title="Année suivante">›</button>
+  </div>
+  <button id="imprimer">Imprimer</button>
+  <span id="etat">Chargement…</span>
+</div>
+
+<div class="blocs">
+  <div>
+    <h2>Planning des CLIR de l'année</h2>
+    <div class="defile"><table id="planning"></table></div>
+    <p class="aide">Cliquez dans une case vide d'un mois pour ajouter une séance, ou sur une séance pour la modifier.</p>
+  </div>
+  <div>
+    <h2>Partenaires présents à au moins une CLIR pendant le mois</h2>
+    <div class="defile"><table id="partenaires"></table></div>
+    <p class="aide">Rempli automatiquement à partir des partenaires cochés sur chaque séance.</p>
+  </div>
+</div>
+
+<div id="voile">
+  <div class="modale">
+    <h3 id="m-titre">Séance</h3>
+    <div class="champ"><label for="m-date">Date</label><input type="date" id="m-date"></div>
+    <div class="champ"><label for="m-type">Type</label><select id="m-type"></select></div>
+    <div class="champ"><label>Partenaires présents</label><div class="cases" id="m-parts"></div></div>
+    <div class="actions">
+      <button class="danger gauche" id="m-suppr">Supprimer</button>
+      <button id="m-annuler">Annuler</button>
+      <button class="prim" id="m-ok">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========= CONFIG ========= */
+const TABLE = "Seances_CLIR";
+const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+// Valeurs de secours si les listes de choix des colonnes ne peuvent pas être lues
+let TYPES = ["Plénière","Restreinte","Scolaire","Lieux de culte","Sport","Autres"];
+let PARTENAIRES = ["SDIS","PN","GN","Préfecture","DGFIP","DDETS","DDPP","DGCCRF","Douanes","ARS","DLPAJ",
+  "Mairie","Conseil départemental","Parquet","Urssaf","CAF","France Travail","SDJES","DSDEN","Autres"];
+const LIGNES_MIN = 5;   // nombre minimal de cases par mois
+/* ========================= */
+
+let seances = [];       // toutes les séances visibles (règles d'accès appliquées)
+let depts = [];         // départements que l'utilisateur peut afficher
+let deptChoisi = "";
+let annee = new Date().getFullYear();
+let enCours = null;     // séance en cours d'édition ({id} ou {mois} pour une nouvelle)
+
+const el = id => document.getElementById(id);
+function etat(msg, err){ el("etat").textContent = msg||""; el("etat").className = err ? "err" : ""; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function liste(v){ return Array.isArray(v) ? (v[0]==="L" ? v.slice(1) : v) : (v ? [v] : []); }
+function lignes(t){
+  const cols = Object.keys(t);
+  return (t.id||[]).map((_,i)=>{ const r={}; cols.forEach(c=>r[c]=t[c][i]); return r; });
+}
+// Les dates Grist sont des secondes depuis 1970 (minuit UTC)
+function versDate(s){ if(typeof s!=="number") return null; const d=new Date(s*1000); return {a:d.getUTCFullYear(), m:d.getUTCMonth(), j:d.getUTCDate()}; }
+function versIso(s){ const d=versDate(s); return d ? `${d.a}-${String(d.m+1).padStart(2,"0")}-${String(d.j).padStart(2,"0")}` : ""; }
+function depuisIso(iso){ if(!iso) return null; const [a,m,j]=iso.split("-").map(Number); return Date.UTC(a,m-1,j)/1000; }
+function affDate(s){ const d=versDate(s); return d ? `${String(d.j).padStart(2,"0")}/${String(d.m+1).padStart(2,"0")}/${d.a}` : ""; }
+
+async function lireChoix(){
+  try{
+    const [tables, cols] = await Promise.all([
+      grist.docApi.fetchTable("_grist_Tables"), grist.docApi.fetchTable("_grist_Tables_column")]);
+    const ref = tables.id[tables.tableId.indexOf(TABLE)];
+    cols.id.forEach((_,i)=>{
+      if(cols.parentId[i]!==ref) return;
+      let ch=[]; try{ ch = JSON.parse(cols.widgetOptions[i]||"{}").choices||[]; }catch(e){}
+      if(!ch.length) return;
+      if(cols.colId[i]==="Type") TYPES = ch;
+      if(cols.colId[i]==="Partenaires") PARTENAIRES = ch;
+    });
+  }catch(e){ /* on garde les valeurs de secours */ }
+}
+
+async function charger(){
+  try{
+    const [tS, tU] = await Promise.all([
+      grist.docApi.fetchTable(TABLE),
+      grist.docApi.fetchTable("Utilisateurs").catch(()=>null)]);
+    seances = lignes(tS);
+    // Départements possibles : ceux des utilisateurs visibles (un agent ne voit que sa ligne)
+    // et ceux des séances visibles (un agent ne voit que son département)
+    const ens = new Set();
+    if(tU) lignes(tU).forEach(u=>{ if(u.Departement) ens.add(u.Departement); });
+    seances.forEach(s=>{ if(s.Departement) ens.add(s.Departement); });
+    depts = [...ens].sort();
+    if(!depts.includes(deptChoisi)){
+      // par défaut : le département qui a le plus de séances, sinon le premier
+      const nb = d => seances.filter(s=>s.Departement===d).length;
+      deptChoisi = depts.slice().sort((a,b)=>nb(b)-nb(a))[0] || "";
+    }
+    const sel = el("dept");
+    sel.innerHTML = depts.map(d=>`<option${d===deptChoisi?" selected":""}>${esc(d)}</option>`).join("");
+    sel.style.display = depts.length>1 ? "" : "none";
+    rendre();
+    etat("");
+  }catch(e){ etat("Erreur de chargement : "+(e.message||e), true); }
+}
+
+function seancesAffichees(){
+  return seances.filter(s=>{
+    const d = versDate(s.Date);
+    // Un agent ne voit de toute façon que son département : on ne filtre que s'il y en a plusieurs
+    return d && d.a===annee && (depts.length<=1 || s.Departement===deptChoisi);
+  }).sort((a,b)=>a.Date-b.Date);
+}
+
+function rendre(){
+  el("an").textContent = annee;
+  const vis = seancesAffichees();
+  const parMois = MOIS.map(()=>[]);
+  vis.forEach(s=>parMois[versDate(s.Date).m].push(s));
+
+  // --- Planning ---
+  const nbLignes = Math.max(LIGNES_MIN, ...parMois.map(l=>l.length+1));
+  let h = `<thead><tr>${MOIS.map(m=>`<th>${m}</th>`).join("")}</tr></thead><tbody>`;
+  for(let i=0;i<nbLignes;i++){
+    h += "<tr>";
+    for(let m=0;m<12;m++){
+      const s = parMois[m][i];
+      h += s
+        ? `<td class="seance" data-id="${s.id}" title="Modifier"><div class="d">${affDate(s.Date)}</div><div class="t">${esc(s.Type||"")}</div></td>`
+        : `<td class="seance vide" data-mois="${m}" title="Ajouter une séance en ${MOIS[m].toLowerCase()}"><span class="plus">+</span></td>`;
+    }
+    h += "</tr>";
+  }
+  el("planning").innerHTML = h + "</tbody>";
+
+  // --- Partenaires (calculé) ---
+  let p = `<thead><tr><th class="lig"></th>${MOIS.map(m=>`<th>${m}</th>`).join("")}</tr></thead><tbody>`;
+  for(const part of PARTENAIRES){
+    p += `<tr><th class="lig">${esc(part)}</th>`;
+    for(let m=0;m<12;m++){
+      const dates = parMois[m].filter(s=>liste(s.Partenaires).includes(part)).map(s=>affDate(s.Date));
+      p += dates.length ? `<td class="part ok" title="${esc(dates.join(", "))}">✓</td>` : `<td class="part"></td>`;
+    }
+    p += "</tr>";
+  }
+  el("partenaires").innerHTML = p + "</tbody>";
+}
+
+/* ---- édition ---- */
+function ouvrir(s, mois){
+  enCours = s ? {id:s.id} : {mois};
+  el("m-titre").textContent = s ? "Modifier la séance" : `Nouvelle séance — ${MOIS[mois]} ${annee}`;
+  const iso = s ? versIso(s.Date) : "";
+  const debut = `${annee}-${String((s?versDate(s.Date).m:mois)+1).padStart(2,"0")}-01`;
+  el("m-date").value = iso || debut;
+  el("m-type").innerHTML = `<option value=""></option>` + TYPES.map(t=>`<option${s&&s.Type===t?" selected":""}>${esc(t)}</option>`).join("");
+  const coches = s ? liste(s.Partenaires) : [];
+  el("m-parts").innerHTML = PARTENAIRES.map(p=>
+    `<label><input type="checkbox" value="${esc(p)}"${coches.includes(p)?" checked":""}> ${esc(p)}</label>`).join("");
+  el("m-suppr").style.display = s ? "" : "none";
+  el("voile").classList.add("ouvert");
+  el("m-date").focus();
+}
+function fermer(){ el("voile").classList.remove("ouvert"); enCours=null; }
+
+async function enregistrer(){
+  const date = depuisIso(el("m-date").value);
+  if(date==null){ alert("Indiquez une date."); return; }
+  const rec = {
+    Date: date,
+    Type: el("m-type").value || null,
+    Partenaires: ["L", ...[...el("m-parts").querySelectorAll("input:checked")].map(c=>c.value)],
+  };
+  try{
+    if(enCours.id){
+      await grist.docApi.applyUserActions([["UpdateRecord", TABLE, enCours.id, rec]]);
+    }else{
+      // Le département n'est envoyé que si l'utilisateur en gère plusieurs (propriétaire) ;
+      // sinon la formule d'initialisation le remplit avec celui de l'agent.
+      if(depts.length>1 && deptChoisi) rec.Departement = deptChoisi;
+      await grist.docApi.applyUserActions([["AddRecord", TABLE, null, rec]]);
+    }
+    const d = versDate(date); if(d) annee = d.a;
+    fermer(); await charger();
+  }catch(e){ alert("Enregistrement impossible : "+(e.message||e)); }
+}
+async function supprimer(){
+  if(!enCours || !enCours.id || !confirm("Supprimer cette séance ?")) return;
+  try{ await grist.docApi.applyUserActions([["RemoveRecord", TABLE, enCours.id]]); fermer(); await charger(); }
+  catch(e){ alert("Suppression impossible : "+(e.message||e)); }
+}
+
+/* ---- événements ---- */
+el("planning").addEventListener("click", e=>{
+  const td = e.target.closest("td.seance"); if(!td) return;
+  if(td.dataset.id) ouvrir(seances.find(s=>s.id===Number(td.dataset.id)));
+  else ouvrir(null, Number(td.dataset.mois));
+});
+el("prec").onclick = ()=>{ annee--; rendre(); };
+el("suiv").onclick = ()=>{ annee++; rendre(); };
+el("dept").onchange = e=>{ deptChoisi = e.target.value; rendre(); };
+el("imprimer").onclick = ()=>window.print();
+el("m-annuler").onclick = fermer;
+el("m-ok").onclick = enregistrer;
+el("m-suppr").onclick = supprimer;
+el("voile").addEventListener("click", e=>{ if(e.target.id==="voile") fermer(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") fermer(); });
+
+grist.ready({requiredAccess:"full"});
+// Recharge quand la table change (saisie par un collègue, modification dans les données brutes…)
+let minuterie;
+grist.onRecords(()=>{ clearTimeout(minuterie); minuterie = setTimeout(charger, 300); });
+lireChoix().then(charger);
+</script>
+</body>
+</html>
