@@ -32,6 +32,7 @@
      background:var(--bleu); color:#fff; font-weight:500;}
   button.sec{background:var(--gris); color:var(--txt); border:1px solid var(--bord);}
   button:disabled{opacity:.5; cursor:default;}
+  button.danger{background:#fff; color:#b42318; border:1px solid #f1b8b2;}
   .etat{font-size:13px; color:var(--muet);}
   .etat.ok{color:var(--vert-txt);} .etat.err{color:#b42318;}
   .controle{border:1px solid var(--bord); border-radius:8px; padding:12px; margin-bottom:12px; background:var(--gris);}
@@ -73,6 +74,7 @@
   <button class="sec" id="btnAnnuler" disabled>Annuler</button>
   <button id="btnEnregistrer" disabled>Enregistrer</button>
   <button class="sec" id="btnImprimer">Imprimer</button>
+  <button class="danger" id="btnSupprimer" disabled>Supprimer la fiche</button>
 </div>
 
 <div id="contenu"><p class="vide">Sélectionnez une ligne dans le tableau pour afficher sa fiche, ou créez-en une avec « + Nouvelle PP ».</p></div>
@@ -584,6 +586,37 @@ el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
 el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
 el("btnNouvelle").onclick = nouvelleFiche;
+el("btnSupprimer").onclick = supprimerFiche;
+// Supprime la fiche ET ce qui lui est rattaché (contrôles/entraves, personnes liées),
+// sinon ces lignes resteraient orphelines dans leurs tables.
+async function supprimerFiche(){
+  if(!recordActuel) return;
+  const nom = recordActuel.Pseudonyme || ("#"+recordActuel.id);
+  const idsCtrl  = (window._ctrlOrigIds||[]).filter(Boolean);
+  const idsLiees = (window._lieesOrigIds||[]).filter(Boolean);
+  const msg = `Supprimer définitivement la fiche PP « ${nom} » ?\n\n` +
+    `Seront aussi supprimés : ${idsCtrl.length} contrôle(s)/entrave(s) et ${idsLiees.length} personne(s) liée(s).`;
+  if(!confirm(msg)) return;
+  el("btnSupprimer").disabled = true;
+  el("etat").textContent = "Suppression\u2026"; el("etat").className="etat";
+  try{
+    const tableFiche = await grist.selectedTable.getTableId();
+    const actions = [];
+    if(idsCtrl.length)  actions.push(["BulkRemoveRecord", CONTROLES.table, idsCtrl]);
+    if(idsLiees.length) actions.push(["BulkRemoveRecord", LIEES.table, idsLiees]);
+    actions.push(["RemoveRecord", tableFiche, recordActuel.id]);
+    await grist.docApi.applyUserActions(actions);   // une seule action : annulable d'un coup avec « Annuler » dans Grist
+    recordActuel = null; modifie = false;
+    el("titre").textContent = "Aucune fiche sélectionnée";
+    el("btnEnregistrer").disabled = true; el("btnAnnuler").disabled = true;
+    rendre();
+    el("etat").textContent = "Fiche supprim\u00e9e"; el("etat").className="etat ok";
+  }catch(err){
+    console.error(err);
+    el("etat").textContent = "Erreur : "+(err.message||err); el("etat").className="etat err";
+    el("btnSupprimer").disabled = false;
+  }
+}
 async function nouvelleFiche(){
   if(modifie && !confirm("Des modifications ne sont pas enregistrées sur la fiche actuelle. Les abandonner et créer une nouvelle PP ?")) return;
   const btn = el("btnNouvelle");
@@ -615,6 +648,7 @@ async function chargerFiche(rec){
   await chargerLiees(rec.id);
   window._lieesOrigIds = lieesActuelles.map(p=>p.id);
   modifie=false; el("btnEnregistrer").disabled=true; el("btnAnnuler").disabled=true; el("etat").textContent="";
+  el("btnSupprimer").disabled=false;
   rendre();
 }
 grist.ready({ requiredAccess:"full" });
