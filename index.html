@@ -106,7 +106,7 @@ const SECTIONS = [
     {id:"Date_signalement",       label:"Date du signalement d'origine", type:"date"},
     {id:"Service_signalant",      label:"Service signalant", type:"choice"},
     {id:"Contenu_signalement",    label:"Contenu du signalement", type:"textarea", large:true},
-    {id:"Commentaire_signalement",label:"Commentaire", type:"textarea", large:true},
+    {id:"Commentaire_signalement",label:"Commentaires", type:"textarea", large:true},
   ]},
   { titre:"Éléments de contexte", champs:[
     {id:"Dirigeants",          label:"Dirigeants", type:"textarea"},
@@ -153,7 +153,7 @@ const CONTROLES = {
     {id:"Duree_jours",         label:"Durée (en jours) après la date", type:"number",
       cats:["Fermeture du lieu et / ou cessation de l'activité s'y déroulant"]},
     {id:"Service_menant",      label:"Service menant", type:"choice"},
-    {id:"Service_partenaire_1",label:"Services partenaires", type:"choicelist"},
+    {id:"Service_partenaire_1",label:"Services partenaires (Plusieurs choix possibles)", type:"choicelist"},
     {id:"Motif_ERP",           label:"Motif ERP", type:"bool",
       cats:["Fermeture du lieu et / ou cessation de l'activité s'y déroulant"]},
     {id:"Montant_applicable",  label:"Montant (si applicable)", type:"number",
