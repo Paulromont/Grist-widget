@@ -110,6 +110,9 @@
 <script>
 /* ========= CONFIG ========= */
 let TABLE = "Seances_CLIR";     // remplacé au démarrage par la table réellement liée au widget
+let TABLE_USERS = "Utilisateurs"; // table des utilisateurs, détectée au démarrage
+let COL_DEPT = "Departement";    // colonne Département de la table des séances
+let COL_DEPT_USERS = "Departement"; // colonne Département de la table des utilisateurs
 let COL_PART = "Partenaires";    // remplacé au démarrage par l'identifiant réel de la colonne « Partenaires présents »
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 // Valeurs de secours si les listes de choix des colonnes ne peuvent pas être lues
@@ -162,6 +165,24 @@ async function lireChoix(){
     // Colonne des partenaires : « Partenaires » en priorité, sinon la première qui commence par « Partenaire »
     const col = candidats.find(c=>c.exact) || candidats[0];
     if(col){ COL_PART = col.id; if(col.ch.length) PARTENAIRES = col.ch; }
+
+    // Colonne « Département » d'une table donnée (identifiant ou libellé commençant par « depart »)
+    const colDept = tref => {
+      let trouve = null;
+      cols.id.forEach((_,i)=>{
+        if(cols.parentId[i]!==tref || trouve) return;
+        if(norm(cols.colId[i]).startsWith("depart") || norm(cols.label[i]).startsWith("depart")) trouve = cols.colId[i];
+      });
+      return trouve;
+    };
+    const cs = colDept(ref); if(cs) COL_DEPT = cs;
+    // Table des utilisateurs : « Utilisateurs » en priorité, sinon une table dont le nom commence par « utilisateur » ou « user »
+    let iu = tables.tableId.indexOf("Utilisateurs");
+    if(iu<0) iu = tables.tableId.findIndex(t=>{ const n=norm(t); return n.startsWith("utilisateur") || n.startsWith("user"); });
+    if(iu>=0){
+      TABLE_USERS = tables.tableId[iu];
+      const cu = colDept(tables.id[iu]); if(cu) COL_DEPT_USERS = cu;
+    }
   }catch(e){ /* on garde les valeurs de secours */ }
 }
 
@@ -169,17 +190,17 @@ async function charger(){
   try{
     const [tS, tU] = await Promise.all([
       grist.docApi.fetchTable(TABLE),
-      grist.docApi.fetchTable("Utilisateurs").catch(()=>null)]);
+      grist.docApi.fetchTable(TABLE_USERS).catch(()=>null)]);
     seances = lignes(tS);
     // Départements possibles : ceux des utilisateurs visibles (un agent ne voit que sa ligne)
     // et ceux des séances visibles (un agent ne voit que son département)
     const ens = new Set();
-    if(tU) lignes(tU).forEach(u=>{ if(u.Departement) ens.add(u.Departement); });
-    seances.forEach(s=>{ if(s.Departement) ens.add(s.Departement); });
+    if(tU) lignes(tU).forEach(u=>{ if(u[COL_DEPT_USERS]) ens.add(u[COL_DEPT_USERS]); });
+    seances.forEach(s=>{ if(s[COL_DEPT]) ens.add(s[COL_DEPT]); });
     depts = [...ens].sort();
     if(!depts.includes(deptChoisi)){
       // par défaut : le département qui a le plus de séances, sinon le premier
-      const nb = d => seances.filter(s=>s.Departement===d).length;
+      const nb = d => seances.filter(s=>s[COL_DEPT]===d).length;
       deptChoisi = depts.slice().sort((a,b)=>nb(b)-nb(a))[0] || "";
     }
     const sel = el("dept");
@@ -194,7 +215,7 @@ function seancesAffichees(){
   return seances.filter(s=>{
     const d = versDate(s.Date);
     // Un agent ne voit de toute façon que son département : on ne filtre que s'il y en a plusieurs
-    return d && d.a===annee && (depts.length<=1 || s.Departement===deptChoisi);
+    return d && d.a===annee && (depts.length<=1 || s[COL_DEPT]===deptChoisi);
   }).sort((a,b)=>a.Date-b.Date);
 }
 
@@ -263,7 +284,7 @@ async function enregistrer(){
     }else{
       // Le département n'est envoyé que si l'utilisateur en gère plusieurs (propriétaire) ;
       // sinon la formule d'initialisation le remplit avec celui de l'agent.
-      if(depts.length>1 && deptChoisi) rec.Departement = deptChoisi;
+      if(depts.length>1 && deptChoisi) rec[COL_DEPT] = deptChoisi;
       await grist.docApi.applyUserActions([["AddRecord", TABLE, null, rec]]);
     }
     const d = versDate(date); if(d) annee = d.a;
