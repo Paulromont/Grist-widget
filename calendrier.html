@@ -187,10 +187,11 @@ async function lireChoix(){
 }
 
 async function charger(){
+  let erreurUsers = "";
   try{
     const [tS, tU] = await Promise.all([
       grist.docApi.fetchTable(TABLE),
-      grist.docApi.fetchTable(TABLE_USERS).catch(()=>null)]);
+      grist.docApi.fetchTable(TABLE_USERS).catch(e=>{ erreurUsers = e.message||String(e); return null; })]);
     seances = lignes(tS);
     // Départements possibles : ceux des utilisateurs visibles (un agent ne voit que sa ligne)
     // et ceux des séances visibles (un agent ne voit que son département)
@@ -207,7 +208,11 @@ async function charger(){
     sel.innerHTML = depts.map(d=>`<option${d===deptChoisi?" selected":""}>${esc(d)}</option>`).join("");
     sel.style.display = depts.length>1 ? "" : "none";
     rendre();
-    etat("");
+    // Diagnostic : visible dans la console du navigateur (F12)
+    console.info("[Calendrier] séances:", TABLE, "/ col. département:", COL_DEPT,
+      "| utilisateurs:", TABLE_USERS, "/ col. département:", COL_DEPT_USERS,
+      "| lignes utilisateurs lues:", tU ? lignes(tU).length : "aucune", "| départements:", depts);
+    etat(erreurUsers ? `Table des utilisateurs (${TABLE_USERS}) illisible : ${erreurUsers}` : "", !!erreurUsers);
   }catch(e){ etat("Erreur de chargement : "+(e.message||e), true); }
 }
 
