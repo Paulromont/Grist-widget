@@ -109,7 +109,8 @@
 
 <script>
 /* ========= CONFIG ========= */
-const TABLE = "Seances_CLIR";
+let TABLE = "Seances_CLIR";     // remplacé au démarrage par la table réellement liée au widget
+let COL_PART = "Partenaires";    // remplacé au démarrage par l'identifiant réel de la colonne « Partenaires présents »
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 // Valeurs de secours si les listes de choix des colonnes ne peuvent pas être lues
 let TYPES = ["Plénière","Restreinte","Scolaire","Lieux de culte","Sport","Autres"];
@@ -142,14 +143,25 @@ async function lireChoix(){
   try{
     const [tables, cols] = await Promise.all([
       grist.docApi.fetchTable("_grist_Tables"), grist.docApi.fetchTable("_grist_Tables_column")]);
-    const ref = tables.id[tables.tableId.indexOf(TABLE)];
+    // Table liée au widget (évite de dépendre du nom exact, ex. SEANCES_CLIR / Seances_CLIR)
+    try{ const t = await grist.selectedTable.getTableId(); if(t) TABLE = t; }catch(e){}
+    let idx = tables.tableId.indexOf(TABLE);
+    if(idx<0) idx = tables.tableId.findIndex(t=>String(t).toLowerCase()===TABLE.toLowerCase());
+    if(idx>=0) TABLE = tables.tableId[idx];
+    const ref = tables.id[idx];
+    const norm = v => String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const candidats = [];
     cols.id.forEach((_,i)=>{
       if(cols.parentId[i]!==ref) return;
       let ch=[]; try{ ch = JSON.parse(cols.widgetOptions[i]||"{}").choices||[]; }catch(e){}
-      if(!ch.length) return;
-      if(cols.colId[i]==="Type") TYPES = ch;
-      if(cols.colId[i]==="Partenaires") PARTENAIRES = ch;
+      const id = cols.colId[i], lab = cols.label[i];
+      if(id==="Type" && ch.length) TYPES = ch;
+      if(norm(id).startsWith("partenaire") || norm(lab).startsWith("partenaire"))
+        candidats.push({id, ch, exact: id==="Partenaires"});
     });
+    // Colonne des partenaires : « Partenaires » en priorité, sinon la première qui commence par « Partenaire »
+    const col = candidats.find(c=>c.exact) || candidats[0];
+    if(col){ COL_PART = col.id; if(col.ch.length) PARTENAIRES = col.ch; }
   }catch(e){ /* on garde les valeurs de secours */ }
 }
 
@@ -212,7 +224,7 @@ function rendre(){
   for(const part of PARTENAIRES){
     p += `<tr><th class="lig">${esc(part)}</th>`;
     for(let m=0;m<12;m++){
-      const dates = parMois[m].filter(s=>liste(s.Partenaires).includes(part)).map(s=>affDate(s.Date));
+      const dates = parMois[m].filter(s=>liste(s[COL_PART]).includes(part)).map(s=>affDate(s.Date));
       p += dates.length ? `<td class="part ok" title="${esc(dates.join(", "))}">✓</td>` : `<td class="part"></td>`;
     }
     p += "</tr>";
@@ -228,7 +240,7 @@ function ouvrir(s, mois){
   const debut = `${annee}-${String((s?versDate(s.Date).m:mois)+1).padStart(2,"0")}-01`;
   el("m-date").value = iso || debut;
   el("m-type").innerHTML = `<option value=""></option>` + TYPES.map(t=>`<option${s&&s.Type===t?" selected":""}>${esc(t)}</option>`).join("");
-  const coches = s ? liste(s.Partenaires) : [];
+  const coches = s ? liste(s[COL_PART]) : [];
   el("m-parts").innerHTML = PARTENAIRES.map(p=>
     `<label><input type="checkbox" value="${esc(p)}"${coches.includes(p)?" checked":""}> ${esc(p)}</label>`).join("");
   el("m-suppr").style.display = s ? "" : "none";
@@ -243,7 +255,7 @@ async function enregistrer(){
   const rec = {
     Date: date,
     Type: el("m-type").value || null,
-    Partenaires: ["L", ...[...el("m-parts").querySelectorAll("input:checked")].map(c=>c.value)],
+    [COL_PART]: ["L", ...[...el("m-parts").querySelectorAll("input:checked")].map(c=>c.value)],
   };
   try{
     if(enCours.id){
