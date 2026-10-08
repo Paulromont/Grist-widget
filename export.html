@@ -18,6 +18,26 @@
   button:disabled{opacity:.5; cursor:default;}
   .etat{margin-top:14px; font-size:13px; color:#6B7280;}
   .etat.ok{color:#3B6D11;} .etat.err{color:#b42318;}
+  html{color-scheme:light !important;}
+  button.perso{background:#fff; color:#1F4E79; border:1px solid #1F4E79;}
+  /* panneau d'export personnalisé */
+  #panneau{display:none; margin-top:18px; border:1px solid #D8DCE1; border-radius:8px; padding:14px 16px; background:#fff;}
+  #panneau.ouvert{display:block;}
+  #panneau h2{font-size:14px; color:#1F4E79; margin:0 0 10px;}
+  .etape{margin-bottom:16px;}
+  .etape h3{font-size:13px; margin:0 0 6px; color:#2E2E2E; display:flex; align-items:center; gap:10px;}
+  .etape h3 .liens{font-weight:400;}
+  .lien{background:none; border:none; padding:0 2px; color:#1F4E79; font-size:12px; text-decoration:underline; cursor:pointer;}
+  .types{display:flex; gap:16px; font-size:13px;}
+  .types label, .cases label{display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; color:#2E2E2E;}
+  .cases{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:3px 14px;}
+  .groupe{font-size:12px; font-weight:600; color:#6B7280; margin:8px 0 4px;}
+  .recherche{font:inherit; font-size:13px; padding:6px 8px; border:1px solid #D8DCE1; border-radius:6px; width:260px; color:#2E2E2E; background:#fff; margin-bottom:6px;}
+  .fiches{max-height:260px; overflow:auto; border:1px solid #D8DCE1; border-radius:6px; padding:6px 8px;}
+  .fiches label{display:flex; align-items:center; gap:8px; padding:2px 0; font-size:13px; cursor:pointer;}
+  .fiches .meta{color:#6B7280; font-size:12px;}
+  .resume{font-size:12px; color:#6B7280; margin-right:auto;}
+  .bas{display:flex; align-items:center; gap:10px; border-top:1px solid #D8DCE1; padding-top:12px;}
 </style>
 </head>
 <body>
@@ -27,8 +47,35 @@
     <button id="btnPM">Exporter les PM</button>
     <button id="btnPP">Exporter les PP</button>
     <button class="sec" id="btnTout">Exporter tout (PM + PP)</button>
+    <button class="perso" id="btnPerso">Export personnalisé…</button>
   </div>
   <div class="etat" id="etat"></div>
+
+  <div id="panneau">
+    <h2>Export personnalisé</h2>
+    <div class="etape">
+      <h3>1. Type de fiches</h3>
+      <div class="types">
+        <label><input type="radio" name="ptype" value="PM" checked> Personnes morales</label>
+        <label><input type="radio" name="ptype" value="PP"> Personnes physiques</label>
+        <label><input type="radio" name="ptype" value="TOUT"> Les deux</label>
+      </div>
+    </div>
+    <div class="etape">
+      <h3>2. Colonnes à inclure <span class="liens"><button class="lien" data-tout="colonnes">tout cocher</button> <button class="lien" data-rien="colonnes">tout décocher</button></span></h3>
+      <div id="colonnes"></div>
+    </div>
+    <div class="etape">
+      <h3>3. Fiches à inclure <span class="liens"><button class="lien" data-tout="fiches">tout cocher</button> <button class="lien" data-rien="fiches">tout décocher</button></span></h3>
+      <input class="recherche" id="recherche" type="search" placeholder="Rechercher un pseudonyme…">
+      <div class="fiches" id="fiches"></div>
+    </div>
+    <div class="bas">
+      <span class="resume" id="resume"></span>
+      <button class="sec" id="btnFermer">Fermer</button>
+      <button id="btnExportPerso">Exporter la sélection</button>
+    </div>
+  </div>
 
 <script>
 /* ===== CONFIGURATION ===== */
@@ -88,7 +135,7 @@ const ENTITE_PP = [
 ];
 
 // Champs d'une action (contrôle ou entrave), dans l'ordre
-const ACTION = [
+const ACTION_TOUS = [
   {id:"Nature_du_controle_entrave",label:"Nature",type:"text"},
   {id:"Categorie",label:"Catégorie",type:"text"},
   {id:"Type_controle",label:"Type",type:"ref"},
@@ -123,7 +170,8 @@ const LIEES_CHAMPS = {
 
 const el = id => document.getElementById(id);
 function setEtat(msg, cls){ el("etat").textContent = msg||""; el("etat").className = "etat" + (cls?(" "+cls):""); }
-function busy(on){ ["btnPM","btnPP","btnTout"].forEach(b=>el(b).disabled=on); }
+function busy(on){ ["btnPM","btnPP","btnTout","btnPerso","btnExportPerso"].forEach(b=>el(b).disabled=on); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 function toRows(t){ return t.id.map((id,i)=>{ const o={id}; for(const c in t){ if(c!=="id") o[c]=t[c][i]; } return o; }); }
 
@@ -164,13 +212,18 @@ function dateAction(a){
   return d ? (Date.parse(d)/1000) : Number.POSITIVE_INFINITY;
 }
 
-function construireFeuille(entites, champsEntite, actionsParEntite, ctx){
+// champsAction : liste des champs d'action à sortir ; vide = aucune colonne d'action
+function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsAction){
+  const ACTION = champsAction || ACTION_TOUS;
   const header = champsEntite.map(c=>c.label);
-  for(let n=1;n<=MAX;n++) for(const c of ACTION) header.push("Action "+n+" - "+c.label);
-  header.push("Actions supplémentaires");
+  if(ACTION.length){
+    for(let n=1;n<=MAX;n++) for(const c of ACTION) header.push("Action "+n+" - "+c.label);
+    header.push("Actions supplémentaires");
+  }
   const rows = [header];
   for(const e of entites){
     const row = champsEntite.map(c=> c.type==="liees" ? fmtLiees(e, c, ctx) : fmt(e[c.id], c.type, ctx));
+    if(!ACTION.length){ rows.push(row); continue; }
     const acts = (actionsParEntite[e.id]||[]).slice().sort((a,b)=>dateAction(a)-dateAction(b));
     for(let n=0;n<MAX;n++){
       const a = acts[n];
@@ -198,9 +251,7 @@ function largeurs(rows){
   return w;
 }
 
-async function exporter(mode){
-  busy(true); setEtat("Lecture des données…");
-  try{
+async function lireDonnees(){
     const [tPM,tPP,tC,tT,tL] = await Promise.all([
       grist.docApi.fetchTable("PM"),
       grist.docApi.fetchTable("PP"),
@@ -227,24 +278,36 @@ async function exporter(mode){
       if(c.PM){ (parPM[c.PM] = parPM[c.PM]||[]).push(c); }
       else if(c.PP){ (parPP[c.PP] = parPP[c.PP]||[]).push(c); }
     }
+    return { PM, PP, parPM, parPP, ctx };
+}
 
+// opts (export personnalisé, facultatif) :
+//   { champs:{PM:[ids],PP:[ids]}, actions:[ids], fiches:{PM:Set, PP:Set}, suffixe:"perso" }
+async function exporter(mode, opts){
+  busy(true); setEtat("Lecture des données…");
+  try{
+    const D = await lireDonnees();
+    const champsAction = opts ? ACTION_TOUS.filter(c=>opts.actions.includes(c.id)) : ACTION_TOUS;
     const wb = XLSX.utils.book_new();
-    if(mode==="PM" || mode==="TOUT"){
-      const rows = construireFeuille(PM, ENTITE_PM, parPM, ctx);
+    let total = 0;
+    const feuille = (type, nomFeuille, entites, champs, parEntite)=>{
+      if(opts){
+        entites = entites.filter(e=>opts.fiches[type].has(e.id));
+        champs = champs.filter(c=>opts.champs[type].includes(c.id));
+        if(!entites.length) return;
+      }
+      const rows = construireFeuille(entites, champs, parEntite, D.ctx, champsAction);
       const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = largeurs(rows);
-      XLSX.utils.book_append_sheet(wb, ws, "Personnes morales");
-    }
-    if(mode==="PP" || mode==="TOUT"){
-      const rows = construireFeuille(PP, ENTITE_PP, parPP, ctx);
-      const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = largeurs(rows);
-      XLSX.utils.book_append_sheet(wb, ws, "Personnes physiques");
-    }
+      XLSX.utils.book_append_sheet(wb, ws, nomFeuille);
+      total += entites.length;
+    };
+    if(mode==="PM" || mode==="TOUT") feuille("PM", "Personnes morales", D.PM, ENTITE_PM, D.parPM);
+    if(mode==="PP" || mode==="TOUT") feuille("PP", "Personnes physiques", D.PP, ENTITE_PP, D.parPP);
+    if(!wb.SheetNames.length){ setEtat("Aucune fiche sélectionnée : rien à exporter.", "err"); return; }
     const date = new Date().toISOString().slice(0,10);
-    const nom = "export_" + (mode==="TOUT"?"PM_PP":mode) + "_" + date + ".xlsx";
+    const nom = "export_" + (mode==="TOUT"?"PM_PP":mode) + (opts?"_"+opts.suffixe:"") + "_" + date + ".xlsx";
     XLSX.writeFile(wb, nom);
-
-    const nbPM = (mode==="PP")?0:PM.length, nbPP = (mode==="PM")?0:PP.length;
-    setEtat("Fichier généré : " + nom + " (" + (nbPM+nbPP) + " entité(s)).", "ok");
+    setEtat("Fichier généré : " + nom + " (" + total + " entité(s)).", "ok");
   }catch(err){
     console.error(err);
     setEtat("Erreur : " + (err.message || err), "err");
@@ -252,6 +315,98 @@ async function exporter(mode){
     busy(false);
   }
 }
+
+/* ===== EXPORT PERSONNALISÉ ===== */
+const MEMO = "export_perso_colonnes";      // mémorise les colonnes cochées (dans ce navigateur)
+let donneesPanneau = null;
+const typePerso = ()=> document.querySelector("input[name=ptype]:checked").value;
+const typesDe = m => m==="TOUT" ? ["PM","PP"] : [m];
+const LIBELLE = {PM:"Personnes morales", PP:"Personnes physiques"};
+
+function memoLire(){ try{ return JSON.parse(localStorage.getItem(MEMO)||"null"); }catch(e){ return null; } }
+function memoEcrire(v){ try{ localStorage.setItem(MEMO, JSON.stringify(v)); }catch(e){} }
+
+function caseHtml(groupe, id, label, coche){
+  return `<label><input type="checkbox" data-g="${groupe}" value="${esc(id)}"${coche?" checked":""}> ${esc(label)}</label>`;
+}
+function rendreColonnes(){
+  const memo = memoLire() || {};
+  const coche = (g,id)=> memo[g] ? memo[g].includes(id) : true;     // par défaut : tout coché
+  let h = "";
+  for(const t of typesDe(typePerso())){
+    const champs = t==="PM" ? ENTITE_PM : ENTITE_PP;
+    h += `<div class="groupe">Fiche — ${LIBELLE[t]}</div><div class="cases">`
+       + champs.map(c=>caseHtml(t, c.id, c.label, coche(t,c.id))).join("") + `</div>`;
+  }
+  h += `<div class="groupe">Actions (contrôles et entraves) — décochez tout pour ne pas les exporter</div><div class="cases">`
+     + ACTION_TOUS.map(c=>caseHtml("ACT", c.id, c.label, coche("ACT",c.id))).join("") + `</div>`;
+  el("colonnes").innerHTML = h;
+}
+function rendreFiches(){
+  if(!donneesPanneau){ el("fiches").innerHTML = "<span class='meta'>Chargement…</span>"; return; }
+  const deja = new Set([...el("fiches").querySelectorAll("input:checked")].map(i=>i.value));
+  const premiere = !el("fiches").querySelector("input");
+  let h = "";
+  for(const t of typesDe(typePerso())){
+    const liste = donneesPanneau[t].slice().sort((a,b)=>String(a.Pseudonyme||"").localeCompare(String(b.Pseudonyme||""),"fr"));
+    if(typePerso()==="TOUT") h += `<div class="groupe">${LIBELLE[t]}</div>`;
+    if(!liste.length) h += `<span class="meta">Aucune fiche accessible.</span>`;
+    for(const e of liste){
+      const cle = t+":"+e.id;
+      const meta = [e.Etat_du_dossier, e.Ville].filter(Boolean).join(" · ");
+      h += `<label data-nom="${esc(String(e.Pseudonyme||"").toLowerCase())}"><input type="checkbox" data-g="FICHE" value="${cle}"${(premiere||deja.has(cle))?" checked":""}>`
+         + `${esc(e.Pseudonyme || "(sans pseudonyme) #"+e.id)} <span class="meta">${esc(meta)}</span></label>`;
+    }
+  }
+  el("fiches").innerHTML = h;
+  filtrer(); majResume();
+}
+function filtrer(){
+  const q = el("recherche").value.trim().toLowerCase();
+  el("fiches").querySelectorAll("label").forEach(l=>{ l.style.display = (!q || l.dataset.nom.includes(q)) ? "" : "none"; });
+}
+function cochees(g){ return [...document.querySelectorAll(`input[data-g="${g}"]:checked`)].map(i=>i.value); }
+function majResume(){
+  const nbF = cochees("FICHE").length;
+  const nbC = typesDe(typePerso()).reduce((n,t)=>n+cochees(t).length,0);
+  const nbA = cochees("ACT").length;
+  el("resume").textContent = `${nbF} fiche(s), ${nbC} colonne(s) de fiche` + (nbA ? `, ${nbA} champ(s) d'action` : ", sans les actions");
+}
+async function ouvrirPanneau(){
+  el("panneau").classList.add("ouvert");
+  rendreColonnes(); rendreFiches();
+  try{
+    const [tPM,tPP] = await Promise.all([grist.docApi.fetchTable("PM"), grist.docApi.fetchTable("PP")]);
+    donneesPanneau = { PM: toRows(tPM), PP: toRows(tPP) };
+    el("fiches").innerHTML = ""; rendreFiches();
+  }catch(err){ el("fiches").innerHTML = "<span class='meta'>Impossible de lire les fiches : "+esc(err.message||err)+"</span>"; }
+}
+function exporterPerso(){
+  const m = typePerso();
+  const fiches = {PM:new Set(), PP:new Set()};
+  cochees("FICHE").forEach(v=>{ const [t,id] = v.split(":"); fiches[t].add(Number(id)); });
+  const champs = {PM:cochees("PM"), PP:cochees("PP")};
+  const actions = cochees("ACT");
+  if(!typesDe(m).some(t=>fiches[t].size)){ setEtat("Cochez au moins une fiche.", "err"); return; }
+  if(!typesDe(m).some(t=>champs[t].length) && !actions.length){ setEtat("Cochez au moins une colonne.", "err"); return; }
+  // on mémorise le choix des colonnes pour la prochaine fois
+  const memo = memoLire() || {};
+  typesDe(m).forEach(t=>{ memo[t] = champs[t]; }); memo.ACT = actions; memoEcrire(memo);
+  exporter(m, {champs, actions, fiches, suffixe:"perso"});
+}
+el("btnPerso").onclick = ()=> el("panneau").classList.contains("ouvert") ? el("panneau").classList.remove("ouvert") : ouvrirPanneau();
+el("btnFermer").onclick = ()=> el("panneau").classList.remove("ouvert");
+el("btnExportPerso").onclick = exporterPerso;
+document.querySelectorAll("input[name=ptype]").forEach(r=> r.onchange = ()=>{ rendreColonnes(); el("fiches").innerHTML=""; rendreFiches(); });
+el("recherche").oninput = filtrer;
+el("panneau").addEventListener("change", majResume);
+el("panneau").addEventListener("click", e=>{
+  const t = e.target.dataset.tout, r = e.target.dataset.rien;
+  if(!t && !r) return;
+  // « tout cocher » ne touche que les fiches visibles après la recherche
+  el(t||r).querySelectorAll("input[type=checkbox]").forEach(i=>{ if(i.closest("label").style.display!=="none") i.checked = !!t; });
+  majResume();
+});
 
 grist.ready({ requiredAccess: "full" });
 el("btnPM").onclick   = ()=> exporter("PM");
