@@ -276,7 +276,7 @@ function rendre(){
   /* ===== 1 ===== */
   h += `<h2 class="sec">1. Analyse de l'état descriptif des objectifs suivis</h2>`;
   h += `<h3>1.1 Caractérisation des objectifs suivis, selon leur mouvance de rattachement</h3>`;
-  const MOUV = ch("PM.Mouvance"), AFF = ch("PM.Affiliation");
+  const AFF = ch("PM.Affiliation"), MOUV = ch("PM.Mouvance");
   h += grille(
     camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF)));
     camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)),
