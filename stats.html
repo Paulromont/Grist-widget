@@ -40,10 +40,12 @@
   /* camembert + légende */
   .pie{display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center;}
   .pie svg{flex:0 0 auto;}
-  .leg{list-style:none; margin:0; padding:0; font-size:12px; min-width:160px; flex:1 1 180px;}
-  .leg li{display:flex; align-items:flex-start; gap:7px; padding:2px 0; color:var(--txt);}
-  .leg .pastille{width:10px; height:10px; border-radius:2px; flex:0 0 10px; margin-top:3px;}
-  .leg .val{margin-left:auto; padding-left:8px; color:var(--txt2); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .leg{list-style:none; margin:0; padding:0; font-size:12px; min-width:160px; flex:0 1 330px;}
+  .leg li{display:flex; align-items:baseline; gap:7px; padding:2px 4px; color:var(--txt); border-radius:4px;}
+  .leg li:hover{background:var(--gris);}
+  .leg .pts{flex:1 1 12px; min-width:12px; border-bottom:1px dotted #B8BEC6; transform:translateY(-3px);}
+  .leg .pastille{width:10px; height:10px; border-radius:2px; flex:0 0 10px; align-self:center;}
+  .leg .val{ color:var(--txt2); font-variant-numeric:tabular-nums; white-space:nowrap;}
   .leg li.zero{color:var(--muet);}
 
   /* barres */
@@ -217,7 +219,7 @@ function camembert(titre, cats, vals, opts={}){
     });
   }
   svg += `</svg>`;
-  const leg = `<ul class="leg">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${coul(i)}"></span><span>${esc(c)}</span><span class="val">${vals[i]}${opts.pourcent&&tot?" · "+Math.round(vals[i]/tot*100)+" %":""}</span></li>`).join("") + `</ul>`;
+  const leg = `<ul class="leg">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${coul(i)}"></span><span>${esc(c)}</span><span class="pts"></span><span class="val">${vals[i]}${opts.pourcent&&tot?" · "+Math.round(vals[i]/tot*100)+" %":""}</span></li>`).join("") + `</ul>`;
   const corps = `<div class="pie">${svg}${leg}</div>`;
   return opts.brut ? corps : carte(titre, corps, opts.sous);
 }
@@ -250,7 +252,7 @@ function pile(titre, total, cats, vals){
   const barre = tot
     ? `<div class="pile">` + vals.map((v,i)=> v ? `<div style="flex:${v};background:${PALETTE[i]};color:${encre(PALETTE[i])}" title="${esc(cats[i])} : ${v}">${v}</div>` : "").join("") + `</div>`
     : `<div class="pile vide-p"></div>`;
-  const leg = `<ul class="leg" style="margin-top:8px">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${PALETTE[i]}"></span><span>${esc(c)}</span><span class="val">${vals[i]}</span></li>`).join("") + `</ul>`;
+  const leg = `<ul class="leg" style="margin-top:8px">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${PALETTE[i]}"></span><span>${esc(c)}</span><span class="pts"></span><span class="val">${vals[i]}</span></li>`).join("") + `</ul>`;
   return carte(titre, `<div class="total"><span>${esc(total[0])}</span><span class="num">${total[1]}</span></div>${barre}${leg}`);
 }
 const grille = (...cartes)=>`<div class="grille">${cartes.join("")}</div>`;
