@@ -278,8 +278,8 @@ function rendre(){
   h += `<h3>1.1 Caractérisation des objectifs suivis, selon leur mouvance de rattachement</h3>`;
   const AFF = ch("PM.Affiliation"), MOUV = ch("PM.Mouvance");
   h += grille(
-    camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF)));
-    camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)),
+    camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF))),
+    camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV));
     
   h += `<h3>1.2 Degré de priorisation des objectifs suivis, selon leur intérêt (national ou local)</h3>`;
   const OBJ = ["National","Local"];
