@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Statistiques — widget Grist</title>
+<script src="https://grist.numerique.gouv.fr/grist-plugin-api.js"></script>
+<style>
+  html{color-scheme:light !important;}
+  :root{
+    --bleu:#1F4E79; --bleu-clair:#E6F1FB;
+    --surface:#ffffff; --gris:#F4F5F7; --bord:#D8DCE1;
+    --txt:#2E2E2E; --txt2:#52514e; --muet:#6B7280;
+    /* palette catégorielle (ordre fixe) */
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+    --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--txt);
+       margin:0; padding:16px; background:var(--surface); font-size:13px;}
+  .barre{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px;}
+  .barre h1{font-size:17px; margin:0 8px 0 0; color:var(--bleu);}
+  .barre label{font-size:12px; color:var(--muet); display:flex; align-items:center; gap:6px;}
+  select{font:inherit; color:var(--txt); background:#fff; padding:5px 8px; border:1px solid var(--bord); border-radius:6px;}
+  button{font:inherit; color:var(--txt); background:#fff; border:1px solid var(--bord); border-radius:6px; padding:5px 12px; cursor:pointer;}
+  button:hover{background:var(--gris);}
+  #etat{color:var(--muet); font-size:12px;} #etat.err{color:#A32D2D;}
+  .perimetre{color:var(--muet); font-size:12px; margin:0 0 14px;}
+
+  h2.sec{font-size:14px; font-weight:600; color:#fff; background:var(--bleu); padding:6px 12px;
+         border-radius:6px; margin:26px 0 10px;}
+  h3{font-size:13px; font-weight:600; color:var(--bleu); margin:18px 0 8px;}
+  h4{font-size:12px; font-weight:600; color:var(--txt2); margin:12px 0 6px;}
+  .grille{display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:14px;}
+  .carte{border:1px solid var(--bord); border-radius:8px; padding:12px 14px; background:#fff; break-inside:avoid;}
+  .carte .titre{font-weight:600; font-size:13px; text-align:center; margin:0 0 8px;}
+  .carte .sous{font-size:11px; color:var(--muet); text-align:center; margin:-4px 0 8px;}
+  .vide{color:var(--muet); font-style:italic; text-align:center; padding:4px 0 8px; font-size:12px;}
+
+  /* camembert + légende */
+  .pie{display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center;}
+  .pie svg{flex:0 0 auto;}
+  .leg{list-style:none; margin:0; padding:0; font-size:12px; min-width:160px; flex:1 1 180px;}
+  .leg li{display:flex; align-items:flex-start; gap:7px; padding:2px 0; color:var(--txt);}
+  .leg .pastille{width:10px; height:10px; border-radius:2px; flex:0 0 10px; margin-top:3px;}
+  .leg .val{margin-left:auto; padding-left:8px; color:var(--txt2); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .leg li.zero{color:var(--muet);}
+
+  /* barres */
+  .hbar{display:grid; grid-template-columns:minmax(120px,46%) 1fr; gap:3px 10px; align-items:center; font-size:12px;}
+  .hbar .lib{text-align:right; color:var(--txt); line-height:1.25;}
+  .hbar .piste{display:flex; align-items:center; gap:6px; min-height:18px;}
+  .hbar .b{height:14px; border-radius:0 4px 4px 0; background:var(--s1); min-width:0;}
+  .hbar .n{color:var(--txt2); font-variant-numeric:tabular-nums;}
+  .vbar svg{width:100%; height:auto; display:block;}
+
+  .total{display:flex; justify-content:space-between; border:1px solid var(--bord); border-radius:6px;
+         padding:6px 10px; margin-bottom:8px; font-weight:600; background:var(--gris);}
+  .pile{display:flex; height:22px; border-radius:4px; overflow:hidden; gap:2px; background:var(--surface);}
+  .pile div{display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; min-width:0;}
+  .pile.vide-p{background:var(--gris);}
+
+  table.t{border-collapse:collapse; width:100%; font-size:12px;}
+  table.t th, table.t td{border:1px solid var(--bord); padding:5px 8px; text-align:center;}
+  table.t thead th{background:var(--bleu-clair); color:var(--bleu); font-weight:600;}
+  table.t td.l, table.t th.l{text-align:left;}
+  table.t tr.tot td{font-weight:600; background:var(--gris);}
+  .num{font-variant-numeric:tabular-nums;}
+
+  @media print{
+    .barre select, .barre button, #etat{display:none;}
+    body{padding:0;}
+    h2.sec, .pile div, .hbar .b, .leg .pastille, table.t thead th, svg path, svg rect{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .grille{grid-template-columns:1fr 1fr;}
+    h3{break-after:avoid;}
+  }
+</style>
+</head>
+<body>
+
+<div class="barre">
+  <h1>Statistiques</h1>
+  <label id="l-dept" style="display:none">Département <select id="dept"></select></label>
+  <label>Actions (parties 2 à 4) <select id="annee"></select></label>
+  <button id="imprimer">Imprimer</button>
+  <span id="etat">Chargement…</span>
+</div>
+<p class="perimetre" id="perimetre"></p>
+<div id="rapport"></div>
+
+<script>
+/* ============ CONFIG ============ */
+const PALETTE = ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
+const SURFACE = "#ffffff";
+// Ordre d'affichage des états dans le tableau 1.4
+const ORDRE_ETATS = ["En cours d'évaluation","Actif","En veille","Clôturé"];
+const NATIONALITES = ["Française","Étrangère","Double nationalité (dont française)","Double nationalité (non française)"];
+// Valeurs de secours si les listes de choix ne peuvent pas être lues
+const SECOURS = {
+  "PM.Mouvance":["Frères musulmans","Salafiste","Tabligh","Suleymanci","Milli Gorus","Autre mouvance","Inconnu"],
+  "PM.Affiliation":["Musulmans de France","GMP","CIMG","Tabligh","Autre affiliation","Inconnu"],
+  "PM.Statut_juridique":["Association loi 1901","Association loi 1905","Association loi 1907","Fonds de dotation","Société commerciale","Société civile immobilière","Micro entreprise","Établissement public","Sans statut juridique"],
+  "PP.sexe":["Femme","Homme"],
+  "Controles.Service_menant":["SDIS","PN","GN","Préfecture","DGFIP","DDETS","DDPP","DGCCRF","Douanes","ARS","DLPAJ","Mairie","Conseil départemental","Parquet","Urssaf","CAF","France Travail","SDJES","DSDEN","Autres"],
+};
+/* ================================ */
+
+const el = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const liste = v => Array.isArray(v) ? (v[0]==="L" ? v.slice(1) : v) : (v ? [v] : []);
+const lignes = t => { const cols=Object.keys(t); return (t.id||[]).map((_,i)=>{ const r={}; cols.forEach(c=>r[c]=t[c][i]); return r; }); };
+const norm = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[’']/g,"'").toLowerCase().trim();
+function etat(m, err){ el("etat").textContent=m||""; el("etat").className=err?"err":""; }
+
+let B = null;          // données brutes
+let choix = {};        // listes de choix par "Table.colonne"
+const ch = k => (choix[k] && choix[k].length) ? choix[k] : (SECOURS[k]||[]);
+
+/* ---------- lecture ---------- */
+async function charger(){
+  try{
+    const lire = n => grist.docApi.fetchTable(n).then(lignes).catch(()=>[]);
+    const [PM, PP, C, CAT, TYP, tabs, cols] = await Promise.all([
+      lire("PM"), lire("PP"), lire("Controles"), lire("Categories"), lire("Types_controle_entrave"),
+      grist.docApi.fetchTable("_grist_Tables").catch(()=>null),
+      grist.docApi.fetchTable("_grist_Tables_column").catch(()=>null)]);
+    choix = {};
+    if(tabs && cols){
+      const nom = {}; tabs.id.forEach((id,i)=>nom[id]=tabs.tableId[i]);
+      cols.id.forEach((_,i)=>{
+        let c=[]; try{ c = JSON.parse(cols.widgetOptions[i]||"{}").choices||[]; }catch(e){}
+        if(c.length && nom[cols.parentId[i]]) choix[nom[cols.parentId[i]]+"."+cols.colId[i]] = c;
+      });
+    }
+    const tri = (a,b)=>(a.manualSort||a.id)-(b.manualSort||b.id);
+    CAT.sort(tri); TYP.sort(tri);
+    const libType = {}; TYP.forEach(t=>libType[t.id]=t.Libelle);
+    C.forEach(c=>{ c._type = libType[c.Type_controle] || ""; c._entrave = norm(c.Nature_du_controle_entrave).includes("entrave");
+                   const d = c.Date_declenchement || c.Date_notification; c._an = typeof d==="number" ? new Date(d*1000).getUTCFullYear() : null; });
+    B = {PM, PP, C, CAT, TYP};
+    remplirFiltres();
+    rendre();
+    etat("");
+  }catch(e){ console.error(e); etat("Erreur de chargement : "+(e.message||e), true); }
+}
+
+function remplirFiltres(){
+  const deps = [...new Set([...B.PM,...B.PP].map(r=>r.Departement).filter(d=>typeof d==="string" && d))].sort();
+  const sel = el("dept"), avant = sel.value;
+  sel.innerHTML = `<option value="">Tous les départements</option>` + deps.map(d=>`<option>${esc(d)}</option>`).join("");
+  if(deps.includes(avant)) sel.value = avant;
+  el("l-dept").style.display = deps.length>1 ? "" : "none";
+  B.deps = deps;
+  const ans = [...new Set(B.C.map(c=>c._an).filter(Boolean))].sort((a,b)=>b-a);
+  const sa = el("annee"), av = sa.value;
+  sa.innerHTML = `<option value="">Toutes les années</option>` + ans.map(a=>`<option>${a}</option>`).join("");
+  if(ans.map(String).includes(av)) sa.value = av;
+}
+
+/* ---------- comptages ---------- */
+// compte, pour chaque catégorie, le nombre de lignes dont la valeur (ou la liste) la contient
+function compter(rows, get, cats){
+  const idx = new Map(cats.map((c,i)=>[norm(c),i])), n = cats.map(()=>0);
+  for(const r of rows){ const vus=new Set();
+    for(const v of liste(get(r))){ const i = idx.get(norm(v)); if(i!=null && !vus.has(i)){ n[i]++; vus.add(i); } } }
+  return n;
+}
+const groupeDomaine = v => String(v).split(" (")[0];
+function groupesDomaines(choices){ return [...new Set(choices.map(groupeDomaine))]; }
+function nationalite(v){
+  const s = norm(v); if(!s) return null;
+  const exact = NATIONALITES.find(n=>norm(n)===s); if(exact) return exact;
+  if(s.includes("double")) return s.includes("non") ? NATIONALITES[3] : NATIONALITES[2];
+  if(s.startsWith("fran") || s==="fr") return NATIONALITES[0];
+  if(s.startsWith("etrang")) return NATIONALITES[1];
+  return "Autre (à reclasser)";
+}
+
+/* ---------- dessin ---------- */
+function encre(hex){ // texte lisible sur une couleur
+  const h=hex.replace("#",""), r=parseInt(h.substr(0,2),16)/255, g=parseInt(h.substr(2,2),16)/255, b=parseInt(h.substr(4,2),16)/255;
+  const L = x=> x<=0.03928? x/12.92 : Math.pow((x+0.055)/1.055,2.4);
+  return (0.2126*L(r)+0.7152*L(g)+0.0722*L(b)) > 0.33 ? "#0b0b0b" : "#ffffff";
+}
+function carte(titre, corps, sous){
+  return `<div class="carte"><div class="titre">${esc(titre)}</div>${sous?`<div class="sous">${esc(sous)}</div>`:""}${corps}</div>`;
+}
+// Camembert : parts = valeurs > 0, légende = toutes les catégories (comme dans le rapport Excel)
+function camembert(titre, cats, vals, opts={}){
+  const tot = vals.reduce((a,b)=>a+b,0), R=88, cx=96, cy=96, taille=192;
+  const coul = i => PALETTE[i % PALETTE.length];
+  let svg = `<svg width="${taille}" height="${taille}" viewBox="0 0 ${taille} ${taille}" role="img" aria-label="${esc(titre)}">`;
+  if(!tot){
+    svg += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#F4F5F7" stroke="#D8DCE1"/>`
+         + `<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" fill="#6B7280">Aucune donnée</text>`;
+  }else{
+    let a0 = -Math.PI/2;
+    const nonNuls = vals.filter(v=>v>0).length;
+    vals.forEach((v,i)=>{
+      if(!v) return;
+      const a1 = a0 + v/tot*2*Math.PI, pct = Math.round(v/tot*100);
+      const etiquette = opts.pourcent ? pct+" %" : String(v);
+      const info = `${cats[i]} : ${v}${opts.pourcent?"":" ("+pct+" %)"}`;
+      if(nonNuls===1){
+        svg += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${coul(i)}"><title>${esc(info)}</title></circle>`;
+        svg += `<text x="${cx}" y="${cy+R-14}" text-anchor="middle" font-size="12" font-weight="600" fill="${encre(coul(i))}">${esc(etiquette)}</text>`;
+      }else{
+        const x0=cx+R*Math.cos(a0), y0=cy+R*Math.sin(a0), x1=cx+R*Math.cos(a1), y1=cy+R*Math.sin(a1);
+        const grand = (a1-a0)>Math.PI ? 1 : 0;
+        svg += `<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${R},${R} 0 ${grand} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${coul(i)}" stroke="${SURFACE}" stroke-width="2" stroke-linejoin="round"><title>${esc(info)}</title></path>`;
+        if((a1-a0) > 0.28){
+          const am=(a0+a1)/2, lx=cx+R*0.66*Math.cos(am), ly=cy+R*0.66*Math.sin(am);
+          svg += `<text x="${lx.toFixed(1)}" y="${(ly+4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="600" fill="${encre(coul(i))}" pointer-events="none">${esc(etiquette)}</text>`;
+        }
+      }
+      a0 = a1;
+    });
+  }
+  svg += `</svg>`;
+  const leg = `<ul class="leg">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${coul(i)}"></span><span>${esc(c)}</span><span class="val">${vals[i]}${opts.pourcent&&tot?" · "+Math.round(vals[i]/tot*100)+" %":""}</span></li>`).join("") + `</ul>`;
+  const corps = `<div class="pie">${svg}${leg}</div>`;
+  return opts.brut ? corps : carte(titre, corps, opts.sous);
+}
+// Barres horizontales (libellés longs)
+function barresH(titre, cats, vals, opts={}){
+  const max = Math.max(1, ...vals);
+  const c = opts.couleur || PALETTE[0];
+  const corps = `<div class="hbar">` + cats.map((cat,i)=>
+      `<div class="lib">${esc(cat)}</div><div class="piste" title="${esc(cat)} : ${vals[i]}"><div class="b" style="width:${vals[i]/max*85}%;background:${c};${vals[i]?"":"display:none"}"></div><span class="n">${vals[i]}</span></div>`).join("") + `</div>`;
+  return carte(titre, corps, opts.sous);
+}
+// Barres verticales (libellés courts : services)
+function barresV(titre, cats, vals, opts={}){
+  const W=560, H=260, bas=100, haut=16, g=44, n=cats.length, pas=(W-g)/n, lb=Math.min(22, pas*0.62);
+  const max = Math.max(1, ...vals), c = opts.couleur || PALETTE[0];
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titre)}">`;
+  s += `<line x1="${g}" y1="${H-bas}" x2="${W}" y2="${H-bas}" stroke="#D8DCE1"/>`;
+  cats.forEach((cat,i)=>{
+    const h = vals[i]/max*(H-bas-haut), x = g + i*pas + (pas-lb)/2, y = H-bas-h;
+    if(vals[i]) s += `<path d="M${x},${H-bas} V${y+4} Q${x},${y} ${x+4},${y} H${x+lb-4} Q${x+lb},${y} ${x+lb},${y+4} V${H-bas} Z" fill="${c}"><title>${esc(cat)} : ${vals[i]}</title></path>`;
+    s += `<text x="${x+lb/2}" y="${y-4}" text-anchor="middle" font-size="11" fill="#52514e">${vals[i]}</text>`;
+    s += `<text transform="translate(${x+lb/2},${H-bas+10}) rotate(-45)" text-anchor="end" font-size="10.5" fill="#2E2E2E">${esc(cat)}</text>`;
+  });
+  s += `</svg>`;
+  return carte(titre, `<div class="vbar">${s}</div>`, opts.sous);
+}
+// Barre empilée national / local
+function pile(titre, total, cats, vals){
+  const tot = vals.reduce((a,b)=>a+b,0);
+  const barre = tot
+    ? `<div class="pile">` + vals.map((v,i)=> v ? `<div style="flex:${v};background:${PALETTE[i]};color:${encre(PALETTE[i])}" title="${esc(cats[i])} : ${v}">${v}</div>` : "").join("") + `</div>`
+    : `<div class="pile vide-p"></div>`;
+  const leg = `<ul class="leg" style="margin-top:8px">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${PALETTE[i]}"></span><span>${esc(c)}</span><span class="val">${vals[i]}</span></li>`).join("") + `</ul>`;
+  return carte(titre, `<div class="total"><span>${esc(total[0])}</span><span class="num">${total[1]}</span></div>${barre}${leg}`);
+}
+const grille = (...cartes)=>`<div class="grille">${cartes.join("")}</div>`;
+
+/* ---------- rapport ---------- */
+function rendre(){
+  if(!B) return;
+  const dep = el("dept").value, an = el("annee").value;
+  const dansDep = r => !dep || r.Departement===dep;
+  const PM = B.PM.filter(dansDep), PP = B.PP.filter(dansDep);
+  const tous = [...PM, ...PP];
+  const C = B.C.filter(c=>(!dep || c.Departement===dep) && (!an || String(c._an)===an));
+  const ctrl = C.filter(c=>!c._entrave), entr = C.filter(c=>c._entrave);
+
+  const nbDep = B.deps.length;
+  el("perimetre").textContent =
+    (dep ? "Département : "+dep : (nbDep>1 ? "Tous les départements ("+nbDep+")" : (nbDep ? "Département : "+B.deps[0] : "")))
+    + " · " + PM.length + " personne(s) morale(s), " + PP.length + " personne(s) physique(s)"
+    + " · Actions : " + (an ? "année "+an : "toutes les années") + " (" + C.length + ")";
+
+  let h = "";
+
+  /* ===== 1 ===== */
+  h += `<h2 class="sec">1. Analyse de l'état descriptif des objectifs suivis</h2>`;
+  h += `<h3>1.1 Caractérisation des objectifs suivis, selon leur mouvance de rattachement</h3>`;
+  const MOUV = ch("PM.Mouvance"), AFF = ch("PM.Affiliation");
+  h += grille(
+    camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)),
+    camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF)));
+
+  h += `<h3>1.2 Degré de priorisation des objectifs suivis, selon leur intérêt (national ou local)</h3>`;
+  const OBJ = ["National","Local"];
+  if(tous.some(r=>norm(r.Objectif)==="international")) OBJ.push("International");
+  const OBJL = OBJ.map(o=>"Objectif d'intérêt "+o.toLowerCase());
+  h += grille(
+    carte("Objectifs d'intérêt national / local",
+      `<div class="total"><span>Nombre total d'objectifs :</span><span class="num">${tous.length}</span></div>` +
+      camembert("Objectifs d'intérêt national / local", OBJL, compter(tous, r=>r.Objectif, OBJ), {brut:true})),
+    `<div style="display:flex;flex-direction:column;gap:14px">` + pile("Personnes morales", ["Nombre total Personnes morales :", PM.length], OBJL, compter(PM, r=>r.Objectif, OBJ)) +
+    pile("Personnes physiques", ["Nombre total Personnes physiques :", PP.length], OBJL, compter(PP, r=>r.Objectif, OBJ)) + `</div>`);
+
+  h += `<h3>1.4 Actualité des objectifs suivis, selon leur statut</h3>`;
+  const ETATS = [...ORDRE_ETATS.filter(e=>ch("PM.Etat_du_dossier").includes(e) || !choix["PM.Etat_du_dossier"]),
+                 ...ch("PM.Etat_du_dossier").filter(e=>!ORDRE_ETATS.includes(e))];
+  const nb = (rows, e, o) => rows.filter(r=>norm(r.Etat_du_dossier)===norm(e) && (!o || norm(r.Objectif)===norm(o))).length;
+  let t = `<table class="t"><thead><tr><th rowspan="2" class="l"></th><th colspan="3">Personnes morales</th><th colspan="3">Personnes physiques</th><th rowspan="2">Total</th></tr>`
+        + `<tr><th>Total</th><th>Intérêt national</th><th>Intérêt local</th><th>Total</th><th>Intérêt national</th><th>Intérêt local</th></tr></thead><tbody>`;
+  const ligneT = (lib, f, cls) => `<tr class="${cls||""}"><td class="l">${esc(lib)}</td>`
+      + [f(PM,null),f(PM,"National"),f(PM,"Local"),f(PP,null),f(PP,"National"),f(PP,"Local"),f(PM,null)+f(PP,null)].map(v=>`<td class="num">${v}</td>`).join("") + `</tr>`;
+  ETATS.forEach(e=>{ t += ligneT("Dossiers — "+e.toLowerCase(), (rows,o)=>nb(rows,e,o)); });
+  t += ligneT("Total", (rows,o)=>rows.filter(r=>!o || norm(r.Objectif)===norm(o)).length, "tot");
+  h += carte("Objectifs suivis par état du dossier", t + `</tbody></table>`);
+
+  h += `<h3>1.5 Répartition des objectifs suivis, par statut juridique (personnes morales)</h3>`;
+  const STAT = ch("PM.Statut_juridique");
+  h += grille(barresH("Statuts juridiques des objectifs", STAT, compter(PM, r=>r.Statut_juridique, STAT)));
+
+  h += `<h3>1.6 Nationalité / sexe des objectifs suivis (personnes physiques)</h3>`;
+  const NAT = [...NATIONALITES];
+  const natV = PP.map(r=>nationalite(r.Nationalite));
+  if(natV.includes("Autre (à reclasser)")) NAT.push("Autre (à reclasser)");
+  const SEXE = ch("PP.sexe");
+  h += grille(
+    camembert("Nationalité", NAT, NAT.map(n=>natV.filter(v=>v===n).length),
+      natV.includes("Autre (à reclasser)") ? {sous:"« Autre (à reclasser) » : nationalité saisie hors des quatre catégories"} : {}),
+    camembert("Sexe des personnes", SEXE, compter(PP, r=>r.sexe, SEXE)));
+
+  h += `<h3>1.7 Répartition des objectifs suivis par domaine d'activité réel</h3>`;
+  const blocDomaines = (col) => {
+    const DOM = ch("PM."+col).length ? ch("PM."+col) : (choix["PM.Domaine_reel_2"]||[]);
+    const GRP = groupesDomaines(DOM);
+    const synth = GRP.map(g=>PM.filter(r=>liste(r[col]).some(v=>groupeDomaine(v)===g)).length);
+    const detail = (g, titre) => { const sous = DOM.filter(d=>groupeDomaine(d)===g && d!==g);
+      return camembert(titre, sous, compter(PM, r=>r[col], sous)); };
+    const g = n => GRP.find(x=>norm(x).startsWith(norm(n))) || n;
+    return grille(
+      camembert("Répartition des objectifs des personnes morales par domaine d'activité (synthèse)", GRP, synth),
+      detail(g("Activité économique"), "Activité économique"),
+      detail(g("Activité socio"), "Activités socio-culturelles"),
+      detail(g("Enseignement scolaire"), "Enseignement scolaire"),
+      detail(g("Enseignement religieux"), "Enseignement religieux"));
+  };
+  h += `<h4>1.7.1 Répartition des objectifs des personnes morales par domaine d'activité(s) déclaré</h4>` + blocDomaines("Domaine_declare_1");
+  h += `<h4>1.7.2 Répartition des objectifs des personnes morales par domaine d'activité(s) réel</h4>` + blocDomaines("Domaine_reel_2");
+  const ACTPP = ch("PP.Activite_s_justfiant_le_suivi");
+  h += `<h4>1.7.3 Répartition des objectifs des personnes physiques par domaine d'activité réel</h4>`
+     + grille(barresH("Nombre de personnes physiques", ACTPP, compter(PP, r=>r.Activite_s_justfiant_le_suivi, ACTPP)));
+
+  /* ===== 2 ===== */
+  h += `<h2 class="sec">2. Bilan des actions engagées à l'encontre des objectifs suivis</h2>`;
+  const NATURES = ch("Controles.Nature_du_controle_entrave").filter(n=>!norm(n).includes("entrave"));
+  const catsDe = motNature => B.CAT.filter(c=>norm(c.Nature).includes(norm(motNature))).map(c=>c.Cathegorie);
+  const typesDe = cat => B.TYP.filter(t=>norm(t.Categorie)===norm(cat)).map(t=>t.Libelle);
+  const parCat = (rows, cats) => compter(rows, c=>c.Categorie, cats);
+  const parType = (rows, types) => compter(rows, c=>c._type, types);
+  const catNom = (motNature, debut) => catsDe(motNature).find(c=>norm(c).startsWith(norm(debut))) || debut;
+
+  h += `<h3>2.1 Répartition des actions de contrôle, selon la nature des contrôles</h3>`;
+  h += grille(camembert("Répartition des actions de contrôle, selon la nature des contrôles", NATURES,
+                compter(ctrl, c=>c.Nature_du_controle_entrave, NATURES), {pourcent:true}));
+
+  h += `<h4>2.1.1 Répartition des contrôles sur pièces, selon leur nature</h4>`;
+  const CP = catsDe("sur pièce");
+  h += grille(camembert("Répartition des contrôles sur pièces, selon leur nature", CP, parCat(ctrl, CP)));
+
+  h += `<h4>2.1.2 Répartition des contrôles sur place, selon leur nature</h4>`;
+  const CPL = catsDe("sur place"), cAct = catNom("sur place", "Contrôle sur place de l");
+  h += grille(
+    camembert("Répartition des contrôles sur place, selon leur nature", CPL, parCat(ctrl, CPL)),
+    barresH("Détails Contrôles de l'activité", typesDe(cAct), parType(ctrl, typesDe(cAct))));
+
+  h += `<h4>2.1.3 Répartition des mesures connues de contrôle fiscal, selon leur nature</h4>`;
+  const CF = catsDe("fiscal"), cfe = CF.find(c=>norm(c).includes("cfe")) || CF[0];
+  const lignesF = [...typesDe(cfe).map(tp=>({lib:tp, f:c=>norm(c._type)===norm(tp)})),
+                   ...CF.filter(c=>c!==cfe).map(cat=>({lib:cat, f:c=>norm(c.Categorie)===norm(cat)}))];
+  const fisc = ctrl.filter(c=>CF.some(cat=>norm(cat)===norm(c.Categorie)));
+  const eur = v => v.toLocaleString("fr-FR",{style:"currency",currency:"EUR"});
+  let tf = `<table class="t"><thead><tr><th class="l"></th><th>Nombre d'affaires</th><th>Résultats financiers (recouvrements)</th></tr></thead><tbody>`;
+  let totN=0, totM=0;
+  lignesF.forEach(l=>{ const r = fisc.filter(l.f), m = r.reduce((s,c)=>s+(Number(c.Montant_recouvre)||0),0); totN+=r.length; totM+=m;
+    tf += `<tr><td class="l">${esc(l.lib)}</td><td class="num">${r.length}</td><td class="num">${eur(m)}</td></tr>`; });
+  tf += `<tr class="tot"><td class="l">Total</td><td class="num">${totN}</td><td class="num">${eur(totM)}</td></tr></tbody></table>`;
+  h += carte("Mesures de contrôle fiscal", tf);
+
+  h += `<h3>2.2 Répartition des actions d'entrave, selon la nature des entraves</h3>`;
+  const CE = catsDe("entrave");
+  h += grille(camembert("Actions d'entrave", CE, parCat(entr, CE)));
+  const cFerm = catNom("entrave","Fermeture"), cCess = catNom("entrave","Autres cessations"),
+        cSais = catNom("entrave","Saisine"), cRef = catNom("entrave","Refus"), cCont = catNom("entrave","Contrainte");
+  h += `<h4>2.2.1 Détail des cessations d'activité ou fermeture de lieu (fermeture, interruption, suspension, interdiction, dissolution)</h4>`
+     + grille(barresH("Fermeture du lieu ou cessation de l'activité s'y déroulant", typesDe(cFerm), parType(entr, typesDe(cFerm)), {couleur:PALETTE[6]}),
+              barresH("Autres cessations d'activité (interruption, interdiction, suspension, dissolution, gel, …)", typesDe(cCess), parType(entr, typesDe(cCess)), {couleur:PALETTE[6]}));
+  const SAIS = typesDe(cSais).filter(t=>norm(t).includes("procureur"));
+  h += `<h4>2.2.2 Parmi les saisines judiciaires, détail des articles 40 / transmission de PV au procureur de la République</h4>`
+     + grille(barresH("Saisines du procureur de la République", SAIS, parType(entr, SAIS), {couleur:PALETTE[6]}));
+  h += `<h4>2.2.3 Détail des refus, retraits ou opposition à avantage</h4>`
+     + grille(barresH("Refus, retraits ou oppositions à un avantage", typesDe(cRef), parType(entr, typesDe(cRef)), {couleur:PALETTE[6]}));
+  h += `<h4>2.2.4 Parmi les contraintes administratives sur individu, détails des mesures prises</h4>`
+     + grille(barresH("Détails des mesures prises à l'encontre de personnes physiques", typesDe(cCont), parType(entr, typesDe(cCont)), {couleur:PALETTE[6]}));
+
+  /* ===== 3 ===== */
+  h += `<h2 class="sec">3. Nombre d'actions (contrôle ou entrave) engagées selon les activités des objectifs suivis</h2>`;
+  const pmParId = new Map(PM.map(r=>[r.id,r]));
+  const actPM = C.filter(c=>pmParId.has(c.PM));
+  const parDomaine = col => { const GRP = groupesDomaines(ch("PM."+col).length ? ch("PM."+col) : (choix["PM.Domaine_reel_2"]||[]));
+    return [GRP, GRP.map(g=>actPM.filter(c=>liste(pmParId.get(c.PM)[col]).some(v=>groupeDomaine(v)===g)).length)]; };
+  const [g1,v1] = parDomaine("Domaine_declare_1"), [g2,v2] = parDomaine("Domaine_reel_2");
+  h += grille(barresH("Nombre d'actions engagées selon les types d'objectifs par domaine d'activité déclaré", g1, v1, {couleur:PALETTE[1]}),
+              barresH("Nombre d'actions engagées selon les types d'objectifs par domaine d'activité réel", g2, v2, {couleur:PALETTE[3]}));
+
+  /* ===== 4 ===== */
+  h += `<h2 class="sec">4. Services mobilisés dans la mise en œuvre des actions de contrôle et d'entrave</h2>`;
+  const SERV = ch("Controles.Service_menant");
+  h += grille(barresV("Services menant dans la mise en œuvre des actions de contrôle et d'entrave", SERV, compter(C, c=>c.Service_menant, SERV), {couleur:PALETTE[5]}),
+              barresV("Services partenaires dans la mise en œuvre des actions de contrôle et d'entrave", SERV, compter(C, c=>c.Service_partenaire_1, SERV), {couleur:PALETTE[5]}));
+
+  el("rapport").innerHTML = h;
+}
+
+el("dept").onchange = rendre;
+el("annee").onchange = rendre;
+el("imprimer").onclick = ()=>window.print();
+grist.ready({requiredAccess:"full"});
+let minut; grist.onRecords(()=>{ clearTimeout(minut); minut = setTimeout(charger, 400); });
+charger();
+</script>
+</body>
+</html>
