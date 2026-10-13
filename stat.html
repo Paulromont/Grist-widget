@@ -333,6 +333,8 @@ function rendre(){
   const parCat = (rows, cats) => compter(rows, c=>c.Categorie, cats);
   const parType = (rows, types) => compter(rows, c=>c._type, types);
   const catNom = (motNature, debut) => catsDe(motNature).find(c=>norm(c).startsWith(norm(debut))) || debut;
+
+  const pmParId = new Map(PMdep.map(r=>[r.id,r]));
   
   el("rapport").innerHTML = h;
 }
