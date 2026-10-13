@@ -324,18 +324,6 @@ function rendre(){
     camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF)),
     camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)));
   
-  /* ===== 2 ===== */
-  h += `<h2 class="sec">2. Bilan des actions engagées à l'encontre des objectifs suivis</h2>`;
-    if(periode) h += `<p class="perimetre">Parties 2 à 4 : actions dont la date de déclenchement (ou de notification pour une entrave) tombe dans la période.</p>`;
-  const NATURES = ch("Controles.Nature_du_controle_entrave").filter(n=>!norm(n).includes("entrave"));
-  const catsDe = motNature => B.CAT.filter(c=>norm(c.Nature).includes(norm(motNature))).map(c=>c.Cathegorie);
-  const typesDe = cat => B.TYP.filter(t=>norm(t.Categorie)===norm(cat)).map(t=>t.Libelle);
-  const parCat = (rows, cats) => compter(rows, c=>c.Categorie, cats);
-  const parType = (rows, types) => compter(rows, c=>c._type, types);
-  const catNom = (motNature, debut) => catsDe(motNature).find(c=>norm(c).startsWith(norm(debut))) || debut;
-
-  const pmParId = new Map(PMdep.map(r=>[r.id,r]));
-  
   el("rapport").innerHTML = h;
 }
 el("dept").onchange = rendre;
