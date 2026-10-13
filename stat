@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Statistiques — widget Grist</title>
+<script src="https://grist.numerique.gouv.fr/grist-plugin-api.js"></script>
+<style>
+  html{color-scheme:light !important;}
+  :root{
+    --bleu:#1F4E79; --bleu-clair:#E6F1FB;
+    --surface:#ffffff; --gris:#F4F5F7; --bord:#D8DCE1;
+    --txt:#2E2E2E; --txt2:#52514e; --muet:#6B7280;
+    /* palette catégorielle (ordre fixe) */
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+    --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--txt);
+       margin:0; padding:16px; background:var(--surface); font-size:13px;}
+  .barre{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px;}
+  .barre h1{font-size:17px; margin:0 8px 0 0; color:var(--bleu);}
+  .barre label{font-size:12px; color:var(--muet); display:flex; align-items:center; gap:6px;}
+  select{font:inherit; color:var(--txt); background:#fff; padding:5px 8px; border:1px solid var(--bord); border-radius:6px;}
+  button{font:inherit; color:var(--txt); background:#fff; border:1px solid var(--bord); border-radius:6px; padding:5px 12px; cursor:pointer;}
+  button:hover{background:var(--gris);}
+  #etat{color:var(--muet); font-size:12px;} #etat.err{color:#A32D2D;}
+  .perimetre{color:var(--muet); font-size:12px; margin:0 0 14px;}
+
+  h2.sec{font-size:14px; font-weight:600; color:#fff; background:var(--bleu); padding:6px 12px;
+         border-radius:6px; margin:26px 0 10px;}
+  h3{font-size:13px; font-weight:600; color:var(--bleu); margin:18px 0 8px;}
+  h4{font-size:12px; font-weight:600; color:var(--txt2); margin:12px 0 6px;}
+  .grille{display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:14px;}
+  .carte{border:1px solid var(--bord); border-radius:8px; padding:12px 14px; background:#fff; break-inside:avoid;}
+  .carte .titre{font-weight:600; font-size:13px; text-align:center; margin:0 0 8px;}
+  .carte .sous{font-size:11px; color:var(--muet); text-align:center; margin:-4px 0 8px;}
+  .vide{color:var(--muet); font-style:italic; text-align:center; padding:4px 0 8px; font-size:12px;}
+
+  /* camembert + légende */
+  .pie{display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center;}
+  .pie svg{flex:0 0 auto;}
+  .leg{list-style:none; margin:0; padding:0; font-size:12px; min-width:160px; flex:0 1 330px;}
+  .leg li{display:flex; align-items:baseline; gap:7px; padding:2px 4px; color:var(--txt); border-radius:4px;}
+  .leg li:hover{background:var(--gris);}
+  .leg .pts{flex:1 1 12px; min-width:12px; border-bottom:1px dotted #B8BEC6; transform:translateY(-3px);}
+  .leg .pastille{width:10px; height:10px; border-radius:2px; flex:0 0 10px; align-self:center;}
+  .leg .val{ color:var(--txt2); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .leg li.zero{color:var(--muet);}
+
+  /* barres */
+  .hbar{display:grid; grid-template-columns:minmax(120px,46%) 1fr; gap:3px 10px; align-items:center; font-size:12px;}
+  .hbar .lib{text-align:right; color:var(--txt); line-height:1.25;}
+  .hbar .piste{display:flex; align-items:center; gap:6px; min-height:18px;}
+  .hbar .b{height:14px; border-radius:0 4px 4px 0; background:var(--s1); min-width:0;}
+  .hbar .n{color:var(--txt2); font-variant-numeric:tabular-nums;}
+  .vbar svg{width:100%; height:auto; display:block;}
+
+  .total{display:flex; justify-content:space-between; border:1px solid var(--bord); border-radius:6px;
+         padding:6px 10px; margin-bottom:8px; font-weight:600; background:var(--gris);}
+  .pile{display:flex; height:22px; border-radius:4px; overflow:hidden; gap:2px; background:var(--surface);}
+  .pile div{display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; min-width:0;}
+  .pile.vide-p{background:var(--gris);}
+
+  table.t{border-collapse:collapse; width:100%; font-size:12px;}
+  table.t th, table.t td{border:1px solid var(--bord); padding:5px 8px; text-align:center;}
+  table.t thead th{background:var(--bleu-clair); color:var(--bleu); font-weight:600;}
+  table.t td.l, table.t th.l{text-align:left;}
+  table.t tr.tot td{font-weight:600; background:var(--gris);}
+  .num{font-variant-numeric:tabular-nums;}
+
+  @media print{
+    .barre select, .barre button, #etat{display:none;}
+    body{padding:0;}
+    h2.sec, .pile div, .hbar .b, .leg .pastille, table.t thead th, svg path, svg rect{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .grille{grid-template-columns:1fr 1fr;}
+    h3{break-after:avoid;}
+  }
+</style>
+</head>
+<body>
+
+<div class="barre">
+  <h1>Statistiques</h1>
+  <label id="l-dept" style="display:none">Département <select id="dept"></select></label>
+  <label>Actions (parties 2 à 4) <select id="annee"></select></label>
+  <button id="imprimer">Imprimer</button>
+  <span id="etat">Chargement…</span>
+</div>
+<p class="perimetre" id="perimetre"></p>
+<div id="rapport"></div>
+
+<script>
+/* ============ CONFIG ============ */
+const PALETTE = ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
+const SURFACE = "#ffffff";
+// Ordre d'affichage des états dans le tableau 1.4
+const ORDRE_ETATS = ["En cours d'évaluation","Actif","En veille","Clôturé"];
+const NATIONALITES = ["Française","Étrangère","Double nationalité (dont française)","Double nationalité (non française)"];
+// Valeurs de secours si les listes de choix ne peuvent pas être lues
+const SECOURS = {
+  "PM.Mouvance":["Frères musulmans","Salafiste","Tabligh","Suleymanci","Milli Gorus","Autre mouvance","Inconnu"],
+  "PM.Affiliation":["Musulmans de France","GMP","CIMG","Tabligh","Autre affiliation","Inconnu"],
+  "PM.Statut_juridique":["Association loi 1901","Association loi 1905","Association loi 1907","Fonds de dotation","Société commerciale","Société civile immobilière","Micro entreprise","Établissement public","Sans statut juridique"],
+  "PP.sexe":["Femme","Homme"],
+  "Controles.Service_menant":["SDIS","PN","GN","Préfecture","DGFIP","DDETS","DDPP","DGCCRF","Douanes","ARS","DLPAJ","Mairie","Conseil départemental","Parquet","Urssaf","CAF","France Travail","SDJES","DSDEN","Autres"],
+};
+/* ================================ */
+
+const el = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const liste = v => Array.isArray(v) ? (v[0]==="L" ? v.slice(1) : v) : (v ? [v] : []);
+const lignes = t => { const cols=Object.keys(t); return (t.id||[]).map((_,i)=>{ const r={}; cols.forEach(c=>r[c]=t[c][i]); return r; }); };
+const norm = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[’']/g,"'").toLowerCase().trim();
+function etat(m, err){ el("etat").textContent=m||""; el("etat").className=err?"err":""; }
+
+let B = null;          // données brutes
+let choix = {};        // listes de choix par "Table.colonne"
+const ch = k => (choix[k] && choix[k].length) ? choix[k] : (SECOURS[k]||[]);
+
+/* ---------- lecture ---------- */
+async function charger(){
+  try{
+    const lire = n => grist.docApi.fetchTable(n).then(lignes).catch(()=>[]);
+    const [PM, PP, C, CAT, TYP, tabs, cols] = await Promise.all([
+      lire("PM"), lire("PP"), lire("Controles"), lire("Categories"), lire("Types_controle_entrave"),
+      grist.docApi.fetchTable("_grist_Tables").catch(()=>null),
+      grist.docApi.fetchTable("_grist_Tables_column").catch(()=>null)]);
+    choix = {};
+    if(tabs && cols){
+      const nom = {}; tabs.id.forEach((id,i)=>nom[id]=tabs.tableId[i]);
+      cols.id.forEach((_,i)=>{
+        let c=[]; try{ c = JSON.parse(cols.widgetOptions[i]||"{}").choices||[]; }catch(e){}
+        if(c.length && nom[cols.parentId[i]]) choix[nom[cols.parentId[i]]+"."+cols.colId[i]] = c;
+      });
+    }
+    const tri = (a,b)=>(a.manualSort||a.id)-(b.manualSort||b.id);
+    CAT.sort(tri); TYP.sort(tri);
+    const libType = {}; TYP.forEach(t=>libType[t.id]=t.Libelle);
+    C.forEach(c=>{ c._type = libType[c.Type_controle] || ""; c._entrave = norm(c.Nature_du_controle_entrave).includes("entrave");
+                   const d = c.Date_declenchement || c.Date_notification; c._an = typeof d==="number" ? new Date(d*1000).getUTCFullYear() : null; });
+    B = {PM, PP, C, CAT, TYP};
+    remplirFiltres();
+    rendre();
+    etat("");
+  }catch(e){ console.error(e); etat("Erreur de chargement : "+(e.message||e), true); }
+}
+
+function remplirFiltres(){
+  const deps = [...new Set([...B.PM,...B.PP].map(r=>r.Departement).filter(d=>typeof d==="string" && d))].sort();
+  const sel = el("dept"), avant = sel.value;
+  sel.innerHTML = `<option value="">Tous les départements</option>` + deps.map(d=>`<option>${esc(d)}</option>`).join("");
+  if(deps.includes(avant)) sel.value = avant;
+  el("l-dept").style.display = deps.length>1 ? "" : "none";
+  B.deps = deps;
+  const ans = [...new Set(B.C.map(c=>c._an).filter(Boolean))].sort((a,b)=>b-a);
+  const sa = el("annee"), av = sa.value;
+  sa.innerHTML = `<option value="">Toutes les années</option>` + ans.map(a=>`<option>${a}</option>`).join("");
+  if(ans.map(String).includes(av)) sa.value = av;
+}
+
+/* ---------- comptages ---------- */
+// compte, pour chaque catégorie, le nombre de lignes dont la valeur (ou la liste) la contient
+function compter(rows, get, cats){
+  const idx = new Map(cats.map((c,i)=>[norm(c),i])), n = cats.map(()=>0);
+  for(const r of rows){ const vus=new Set();
+    for(const v of liste(get(r))){ const i = idx.get(norm(v)); if(i!=null && !vus.has(i)){ n[i]++; vus.add(i); } } }
+  return n;
+}
+const groupeDomaine = v => String(v).split(" (")[0];
+function groupesDomaines(choices){ return [...new Set(choices.map(groupeDomaine))]; }
+function nationalite(v){
+  const s = norm(v); if(!s) return null;
+  const exact = NATIONALITES.find(n=>norm(n)===s); if(exact) return exact;
+  if(s.includes("double")) return s.includes("non") ? NATIONALITES[3] : NATIONALITES[2];
+  if(s.startsWith("fran") || s==="fr") return NATIONALITES[0];
+  if(s.startsWith("etrang")) return NATIONALITES[1];
+  return "Autre (à reclasser)";
+}
+
+/* ---------- dessin ---------- */
+function encre(hex){ // texte lisible sur une couleur
+  const h=hex.replace("#",""), r=parseInt(h.substr(0,2),16)/255, g=parseInt(h.substr(2,2),16)/255, b=parseInt(h.substr(4,2),16)/255;
+  const L = x=> x<=0.03928? x/12.92 : Math.pow((x+0.055)/1.055,2.4);
+  return (0.2126*L(r)+0.7152*L(g)+0.0722*L(b)) > 0.33 ? "#0b0b0b" : "#ffffff";
+}
+function carte(titre, corps, sous){
+  return `<div class="carte"><div class="titre">${esc(titre)}</div>${sous?`<div class="sous">${esc(sous)}</div>`:""}${corps}</div>`;
+}
+// Camembert : parts = valeurs > 0, légende = toutes les catégories (comme dans le rapport Excel)
+function camembert(titre, cats, vals, opts={}){
+  const tot = vals.reduce((a,b)=>a+b,0), R=88, cx=96, cy=96, taille=192;
+  const coul = i => PALETTE[i % PALETTE.length];
+  let svg = `<svg width="${taille}" height="${taille}" viewBox="0 0 ${taille} ${taille}" role="img" aria-label="${esc(titre)}">`;
+  if(!tot){
+    svg += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#F4F5F7" stroke="#D8DCE1"/>`
+         + `<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" fill="#6B7280">Aucune donnée</text>`;
+  }else{
+    let a0 = -Math.PI/2;
+    const nonNuls = vals.filter(v=>v>0).length;
+    vals.forEach((v,i)=>{
+      if(!v) return;
+      const a1 = a0 + v/tot*2*Math.PI, pct = Math.round(v/tot*100);
+      const etiquette = opts.pourcent ? pct+" %" : String(v);
+      const info = `${cats[i]} : ${v}${opts.pourcent?"":" ("+pct+" %)"}`;
+      if(nonNuls===1){
+        svg += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${coul(i)}"><title>${esc(info)}</title></circle>`;
+        svg += `<text x="${cx}" y="${cy+R-14}" text-anchor="middle" font-size="12" font-weight="600" fill="${encre(coul(i))}">${esc(etiquette)}</text>`;
+      }else{
+        const x0=cx+R*Math.cos(a0), y0=cy+R*Math.sin(a0), x1=cx+R*Math.cos(a1), y1=cy+R*Math.sin(a1);
+        const grand = (a1-a0)>Math.PI ? 1 : 0;
+        svg += `<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${R},${R} 0 ${grand} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${coul(i)}" stroke="${SURFACE}" stroke-width="2" stroke-linejoin="round"><title>${esc(info)}</title></path>`;
+        if((a1-a0) > 0.28){
+          const am=(a0+a1)/2, lx=cx+R*0.66*Math.cos(am), ly=cy+R*0.66*Math.sin(am);
+          svg += `<text x="${lx.toFixed(1)}" y="${(ly+4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="600" fill="${encre(coul(i))}" pointer-events="none">${esc(etiquette)}</text>`;
+        }
+      }
+      a0 = a1;
+    });
+  }
+  svg += `</svg>`;
+  const leg = `<ul class="leg">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${coul(i)}"></span><span>${esc(c)}</span><span class="pts"></span><span class="val">${vals[i]}${opts.pourcent&&tot?" · "+Math.round(vals[i]/tot*100)+" %":""}</span></li>`).join("") + `</ul>`;
+  const corps = `<div class="pie">${svg}${leg}</div>`;
+  return opts.brut ? corps : carte(titre, corps, opts.sous);
+}
+// Barres horizontales (libellés longs)
+function barresH(titre, cats, vals, opts={}){
+  const max = Math.max(1, ...vals);
+  const c = opts.couleur || PALETTE[0];
+  const corps = `<div class="hbar">` + cats.map((cat,i)=>
+      `<div class="lib">${esc(cat)}</div><div class="piste" title="${esc(cat)} : ${vals[i]}"><div class="b" style="width:${vals[i]/max*85}%;background:${c};${vals[i]?"":"display:none"}"></div><span class="n">${vals[i]}</span></div>`).join("") + `</div>`;
+  return carte(titre, corps, opts.sous);
+}
+// Barres verticales (libellés courts : services)
+function barresV(titre, cats, vals, opts={}){
+  const W=560, H=260, bas=100, haut=16, g=44, n=cats.length, pas=(W-g)/n, lb=Math.min(22, pas*0.62);
+  const max = Math.max(1, ...vals), c = opts.couleur || PALETTE[0];
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titre)}">`;
+  s += `<line x1="${g}" y1="${H-bas}" x2="${W}" y2="${H-bas}" stroke="#D8DCE1"/>`;
+  cats.forEach((cat,i)=>{
+    const h = vals[i]/max*(H-bas-haut), x = g + i*pas + (pas-lb)/2, y = H-bas-h;
+    if(vals[i]) s += `<path d="M${x},${H-bas} V${y+4} Q${x},${y} ${x+4},${y} H${x+lb-4} Q${x+lb},${y} ${x+lb},${y+4} V${H-bas} Z" fill="${c}"><title>${esc(cat)} : ${vals[i]}</title></path>`;
+    s += `<text x="${x+lb/2}" y="${y-4}" text-anchor="middle" font-size="11" fill="#52514e">${vals[i]}</text>`;
+    s += `<text transform="translate(${x+lb/2},${H-bas+10}) rotate(-45)" text-anchor="end" font-size="10.5" fill="#2E2E2E">${esc(cat)}</text>`;
+  });
+  s += `</svg>`;
+  return carte(titre, `<div class="vbar">${s}</div>`, opts.sous);
+}
+// Barre empilée national / local
+function pile(titre, total, cats, vals){
+  const tot = vals.reduce((a,b)=>a+b,0);
+  const barre = tot
+    ? `<div class="pile">` + vals.map((v,i)=> v ? `<div style="flex:${v};background:${PALETTE[i]};color:${encre(PALETTE[i])}" title="${esc(cats[i])} : ${v}">${v}</div>` : "").join("") + `</div>`
+    : `<div class="pile vide-p"></div>`;
+  const leg = `<ul class="leg" style="margin-top:8px">` + cats.map((c,i)=>`<li class="${vals[i]?"":"zero"}"><span class="pastille" style="background:${PALETTE[i]}"></span><span>${esc(c)}</span><span class="pts"></span><span class="val">${vals[i]}</span></li>`).join("") + `</ul>`;
+  return carte(titre, `<div class="total"><span>${esc(total[0])}</span><span class="num">${total[1]}</span></div>${barre}${leg}`);
+}
+const grille = (...cartes)=>`<div class="grille">${cartes.join("")}</div>`;
+
+/* ---------- rapport ---------- */
+function rendre(){
+  if(!B) return;
+  const dep = el("dept").value, an = el("annee").value;
+  const dansDep = r => !dep || r.Departement===dep;
+  const PM = B.PM.filter(dansDep), PP = B.PP.filter(dansDep);
+  const tous = [...PM, ...PP];
+  const C = B.C.filter(c=>(!dep || c.Departement===dep) && (!an || String(c._an)===an));
+  const ctrl = C.filter(c=>!c._entrave), entr = C.filter(c=>c._entrave);
+
+  const nbDep = B.deps.length;
+  el("perimetre").textContent =
+    (dep ? "Département : "+dep : (nbDep>1 ? "Tous les départements ("+nbDep+")" : (nbDep ? "Département : "+B.deps[0] : "")))
+    + " · " + PM.length + " personne(s) morale(s), " + PP.length + " personne(s) physique(s)"
+    + " · Actions : " + (an ? "année "+an : "toutes les années") + " (" + C.length + ")";
+
+  let h = "";
+
+  /* ===== 1 ===== */
+  h += `<h2 class="sec">1. Analyse de l'état descriptif des objectifs suivis</h2>`;
+  h += `<h3>1.1 Caractérisation des objectifs suivis, selon leur mouvance de rattachement</h3>`;
+  const MOUV = ch("PM.Mouvance"), AFF = ch("PM.Affiliation");
+  h += grille(
+    camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF)),
+    camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)));
