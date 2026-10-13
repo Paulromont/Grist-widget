@@ -282,3 +282,15 @@ function rendre(){
   h += grille(
     camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF)),
     camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)));
+  
+  el("rapport").innerHTML = h;
+}
+el("dept").onchange = rendre;
+el("annee").onchange = rendre;
+el("imprimer").onclick = ()=>window.print();
+grist.ready({requiredAccess:"full"});
+let minut; grist.onRecords(()=>{ clearTimeout(minut); minut = setTimeout(charger, 400); });
+charger();
+</script>
+</body>
+</html>
