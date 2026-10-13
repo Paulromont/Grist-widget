@@ -310,9 +310,10 @@ function rendre(){
   const nbDep = B.deps.length;
   el("perimetre").textContent =
     (dep ? "Département : "+dep : (nbDep>1 ? "Tous les départements ("+nbDep+")" : (nbDep ? "Département : "+B.deps[0] : "")))
+    + " · Période : " + libellePeriode()
     + " · " + PM.length + " personne(s) morale(s), " + PP.length + " personne(s) physique(s)"
-    + " · Actions : " + (an ? "année "+an : "toutes les années") + " (" + C.length + ")";
-
+    + (periode ? " passées en CLIR sur la période" : "")
+    + " · " + C.length + " action(s)";
   let h = "";
 
   /* ===== 1 ===== */
@@ -328,6 +329,8 @@ function rendre(){
 }
 el("dept").onchange = rendre;
 el("annee").onchange = rendre;
+el("mois").onchange = rendre;
+el("mode").onchange = ()=>{ majPeriode(); rendre(); };
 el("imprimer").onclick = ()=>window.print();
 grist.ready({requiredAccess:"full"});
 let minut; grist.onRecords(()=>{ clearTimeout(minut); minut = setTimeout(charger, 400); });
