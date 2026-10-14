@@ -20,6 +20,7 @@
        margin:0; padding:16px; background:var(--surface); font-size:13px;}
   .barre{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px;}
   .barre h1{font-size:17px; margin:0 8px 0 0; color:var(--bleu);}
+  .barre .droite{margin-left:auto; display:flex; gap:8px;}
   .barre label{font-size:12px; color:var(--muet); display:flex; align-items:center; gap:6px;}
   select{font:inherit; color:var(--txt); background:#fff; padding:5px 8px; border:1px solid var(--bord); border-radius:6px;}
   button{font:inherit; color:var(--txt); background:#fff; border:1px solid var(--bord); border-radius:6px; padding:5px 12px; cursor:pointer;}
@@ -96,10 +97,12 @@
     </select></label>
   <select id="annee" title="Année" style="display:none"></select>
   <select id="mois" title="Mois" style="display:none"></select>
-  <button id="toutOuvrir" title="Déplier toutes les sections">Tout déplier</button>
-  <button id="toutFermer" title="Replier toutes les sections">Tout replier</button>
-  <button id="imprimer">Imprimer</button>
   <span id="etat">Chargement…</span>
+  <div class="droite">
+    <button id="toutOuvrir" title="Déplier toutes les sections">Tout déplier</button>
+    <button id="toutFermer" title="Replier toutes les sections">Tout replier</button>
+    <button id="imprimer">Imprimer</button>
+  </div>
 </div>
 <p class="perimetre" id="perimetre"></p>
 <div id="rapport"></div>
@@ -193,16 +196,17 @@ function majPeriode(){
   el("annee").style.display = m ? "" : "none";
   el("mois").style.display = m==="mois" ? "" : "none";
 }
-// vrai si la date est dans la période choisie (toujours vrai en mode « Totaux »)
+// vrai si la date est dans la période choisie ; une ligne sans date n'est jamais comptée
 function dansPeriode(d){
   const m = el("mode").value;
+  if(typeof d !== "number") return false;   // pas de date = pas compté, même en « Totaux »
   if(!m) return true;
   if(anDe(d) !== Number(el("annee").value)) return false;
   return m==="an" || moisDe(d) === Number(el("mois").value);
 }
 function libellePeriode(){
   const m = el("mode").value;
-  if(!m) return "totaux (toutes dates)";
+  if(!m) return "totaux";
   return m==="an" ? "année "+el("annee").value : MOIS[Number(el("mois").value)-1].toLowerCase()+" "+el("annee").value;
 }
 
@@ -322,14 +326,18 @@ function rendre(){
     (dep ? "Département : "+dep : (nbDep>1 ? "Tous les départements ("+nbDep+")" : (nbDep ? "Département : "+B.deps[0] : "")))
     + " · Période : " + libellePeriode()
     + " · " + PM.length + " personne(s) morale(s), " + PP.length + " personne(s) physique(s)"
-    + (periode ? " passées en CLIR sur la période" : "")
     + " · " + C.length + " action(s)";
+  // fiches et actions écartées faute de date
+  const sansDate = [...B.PM, ...B.PP].filter(r=>dansDep(r) && typeof r._date!=="number").length;
+  const actSansDate = B.C.filter(c=>(!dep || c.Departement===dep) && typeof c._date!=="number").length;
+  if(sansDate || actSansDate) el("perimetre").textContent +=
+    " · Non comptées faute de date : " + sansDate + " fiche(s), " + actSansDate + " action(s)";
 
   let h = "";
 
   /* ===== 1 ===== */
   h += `<h2 class="sec">1. Analyse de l'état descriptif des objectifs suivis</h2>`;
-  if(periode) h += `<p class="perimetre">Partie 1 : fiches dont la date de passage en CLIR tombe dans la période (${esc(libellePeriode())}). Les fiches sans date de passage en CLIR ne sont comptées qu'en « Totaux ».</p>`;
+  h += `<p class="perimetre">Partie 1 : seules les fiches ayant une date de passage en CLIR${periode ? " comprise dans la période ("+esc(libellePeriode())+")" : ""} sont comptées.</p>`;
   h += `<h3>1.1 Caractérisation des objectifs suivis, selon leur mouvance de rattachement</h3>`;
   const MOUV = ch("PM.Mouvance"), AFF = ch("PM.Affiliation");
   h += grille(
@@ -396,7 +404,7 @@ function rendre(){
 
   /* ===== 2 ===== */
   h += `<h2 class="sec">2. Bilan des actions engagées à l'encontre des objectifs suivis</h2>`;
-  if(periode) h += `<p class="perimetre">Parties 2 à 4 : actions dont la date de déclenchement (ou de notification pour une entrave) tombe dans la période.</p>`;
+  h += `<p class="perimetre">Parties 2 à 4 : seules les actions ayant une date de déclenchement (ou de notification pour une entrave)${periode ? " comprise dans la période" : ""} sont comptées.</p>`;
   const NATURES = ch("Controles.Nature_du_controle_entrave").filter(n=>!norm(n).includes("entrave"));
   const catsDe = motNature => B.CAT.filter(c=>norm(c.Nature).includes(norm(motNature))).map(c=>c.Cathegorie);
   const typesDe = cat => B.TYP.filter(t=>norm(t.Categorie)===norm(cat)).map(t=>t.Libelle);
