@@ -37,12 +37,26 @@
   .fiches label{display:flex; align-items:center; gap:8px; padding:2px 0; font-size:13px; cursor:pointer;}
   .fiches .meta{color:#6B7280; font-size:12px;}
   .resume{font-size:12px; color:#6B7280; margin-right:auto;}
+  .periode{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 14px; padding:10px 12px;
+           background:#F4F5F7; border:1px solid #D8DCE1; border-radius:8px; font-size:13px;}
+  .periode b{color:#1F4E79;}
+  .periode select{font:inherit; color:#2E2E2E; background:#fff; padding:5px 8px; border:1px solid #D8DCE1; border-radius:6px;}
+  .periode .aide{color:#6B7280; font-size:12px; flex-basis:100%;}
   .bas{display:flex; align-items:center; gap:10px; border-top:1px solid #D8DCE1; padding-top:12px;}
 </style>
 </head>
 <body>
   <h1>Export brut (pour recherche par mot-clé)</h1>
   <p class="info">Une ligne par entité, avec ses actions (contrôles et entraves) en colonnes, triées par date. Jusqu'à 8 actions détaillées ; au-delà, regroupées dans « Actions supplémentaires ». N'exporte que les entités accessibles (votre département).</p>
+  <div class="periode">
+    <b>Période à exporter</b>
+    <select id="mode">
+      <option value="">Totaux (toutes les fiches)</option><option value="an">Annuel</option><option value="mois">Mensuel</option>
+    </select>
+    <select id="annee" title="Année" style="display:none"></select>
+    <select id="mois" title="Mois" style="display:none"></select>
+    <span class="aide" id="aidePeriode"></span>
+  </div>
   <div class="boutons">
     <button id="btnPM">Exporter les PM</button>
     <button id="btnPP">Exporter les PP</button>
@@ -281,6 +295,47 @@ async function lireDonnees(){
     return { PM, PP, parPM, parPP, ctx };
 }
 
+/* ===== PÉRIODE (s'applique à tous les exports) ===== */
+const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const anDe = d => typeof d==="number" ? new Date(d*1000).getUTCFullYear() : null;
+const moisDe = d => typeof d==="number" ? new Date(d*1000).getUTCMonth()+1 : null;
+const dateFiche = (type, e) => type==="PM" ? e.Dates_passage_CLIR : e.Dates_de_passage_en_CLIR;
+const dateAct = a => a.Date_declenchement || a.Date_notification;
+// vrai si la date est dans la période ; en « Totaux », tout passe (même sans date)
+function dansPeriode(d){
+  const m = el("mode").value;
+  if(!m) return true;
+  if(anDe(d) !== Number(el("annee").value)) return false;
+  return m==="an" || moisDe(d) === Number(el("mois").value);
+}
+function codePeriode(){       // pour le nom du fichier : "2026" ou "2026-03"
+  const m = el("mode").value;
+  if(!m) return "";
+  return m==="an" ? el("annee").value : el("annee").value+"-"+String(el("mois").value).padStart(2,"0");
+}
+function majPeriode(){
+  const m = el("mode").value;
+  el("annee").style.display = m ? "" : "none";
+  el("mois").style.display = m==="mois" ? "" : "none";
+  el("aidePeriode").textContent = m
+    ? "Seules les fiches dont la date de passage en CLIR est dans la période sont exportées, avec uniquement leurs actions datées de cette période."
+    : "Toutes les fiches et toutes leurs actions sont exportées, quelle que soit leur date.";
+  if(el("panneau").classList.contains("ouvert")){ el("fiches").innerHTML=""; rendreFiches(); }
+}
+async function remplirAnnees(){
+  let ans = [];
+  try{
+    const [tPM,tPP,tC] = await Promise.all(["PM","PP","Controles"].map(n=>grist.docApi.fetchTable(n)));
+    ans = [...(tPM.Dates_passage_CLIR||[]), ...(tPP.Dates_de_passage_en_CLIR||[]),
+           ...(tC.Date_declenchement||[]), ...(tC.Date_notification||[])].map(anDe).filter(Boolean);
+  }catch(e){}
+  ans = [...new Set([...ans, new Date().getFullYear()])].sort((a,b)=>b-a);
+  el("annee").innerHTML = ans.map(a=>`<option>${a}</option>`).join("");
+  el("mois").innerHTML = MOIS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("");
+  el("mois").value = String(new Date().getMonth()+1);
+  majPeriode();
+}
+
 // opts (export personnalisé, facultatif) :
 //   { champs:{PM:[ids],PP:[ids]}, actions:[ids], fiches:{PM:Set, PP:Set}, suffixe:"perso" }
 async function exporter(mode, opts){
@@ -291,6 +346,11 @@ async function exporter(mode, opts){
     const wb = XLSX.utils.book_new();
     let total = 0;
     const feuille = (type, nomFeuille, entites, champs, parEntite)=>{
+      // période : fiches selon leur date de passage en CLIR, actions selon leur propre date
+      entites = entites.filter(e=>dansPeriode(dateFiche(type, e)));
+      const actions = {};
+      for(const id in parEntite) actions[id] = parEntite[id].filter(a=>dansPeriode(dateAct(a)));
+      parEntite = actions;
       if(opts){
         entites = entites.filter(e=>opts.fiches[type].has(e.id));
         champs = champs.filter(c=>opts.champs[type].includes(c.id));
@@ -303,9 +363,9 @@ async function exporter(mode, opts){
     };
     if(mode==="PM" || mode==="TOUT") feuille("PM", "Personnes morales", D.PM, ENTITE_PM, D.parPM);
     if(mode==="PP" || mode==="TOUT") feuille("PP", "Personnes physiques", D.PP, ENTITE_PP, D.parPP);
-    if(!wb.SheetNames.length){ setEtat("Aucune fiche sélectionnée : rien à exporter.", "err"); return; }
+    if(!wb.SheetNames.length){ setEtat("Aucune fiche à exporter pour cette sélection ou cette période.", "err"); return; }
     const date = new Date().toISOString().slice(0,10);
-    const nom = "export_" + (mode==="TOUT"?"PM_PP":mode) + (opts?"_"+opts.suffixe:"") + "_" + date + ".xlsx";
+    const nom = "export_" + (mode==="TOUT"?"PM_PP":mode) + (opts?"_"+opts.suffixe:"") + (codePeriode()?"_periode-"+codePeriode():"") + "_extrait-le-" + date + ".xlsx";
     XLSX.writeFile(wb, nom);
     setEtat("Fichier généré : " + nom + " (" + total + " entité(s)).", "ok");
   }catch(err){
@@ -348,9 +408,9 @@ function rendreFiches(){
   const premiere = !el("fiches").querySelector("input");
   let h = "";
   for(const t of typesDe(typePerso())){
-    const liste = donneesPanneau[t].slice().sort((a,b)=>String(a.Pseudonyme||"").localeCompare(String(b.Pseudonyme||""),"fr"));
+    const liste = donneesPanneau[t].filter(e=>dansPeriode(dateFiche(t, e))).sort((a,b)=>String(a.Pseudonyme||"").localeCompare(String(b.Pseudonyme||""),"fr"));
     if(typePerso()==="TOUT") h += `<div class="groupe">${LIBELLE[t]}</div>`;
-    if(!liste.length) h += `<span class="meta">Aucune fiche accessible.</span>`;
+    if(!liste.length) h += `<span class="meta">Aucune fiche pour cette période.</span>`;
     for(const e of liste){
       const cle = t+":"+e.id;
       const meta = [e.Etat_du_dossier, e.Ville].filter(Boolean).join(" · ");
@@ -412,6 +472,10 @@ grist.ready({ requiredAccess: "full" });
 el("btnPM").onclick   = ()=> exporter("PM");
 el("btnPP").onclick   = ()=> exporter("PP");
 el("btnTout").onclick = ()=> exporter("TOUT");
+el("mode").onchange = majPeriode;
+el("annee").onchange = majPeriode;
+el("mois").onchange = majPeriode;
+remplirAnnees();
 </script>
 </body>
 </html>
