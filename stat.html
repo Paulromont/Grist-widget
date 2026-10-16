@@ -324,6 +324,44 @@ function rendre(){
   h += grille(
     camembert("Affiliations des personnes morales et physiques", AFF, compter(tous, r=>r.Affiliation, AFF)),
     camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)));
+
+  h += `<h3>1.2 Degré de priorisation des objectifs suivis, selon leur intérêt (national ou local)</h3>`;
+  const OBJ = ["National","Local"];
+  if(tous.some(r=>norm(r.Objectif)==="international")) OBJ.push("International");
+  const OBJL = OBJ.map(o=>"Objectif d'intérêt "+o.toLowerCase());
+  h += grille(
+    carte("Objectifs d'intérêt national / local",
+      `<div class="total"><span>Nombre total d'objectifs :</span><span class="num">${tous.length}</span></div>` +
+      camembert("Objectifs d'intérêt national / local", OBJL, compter(tous, r=>r.Objectif, OBJ), {brut:true})),
+    `<div style="display:flex;flex-direction:column;gap:14px">` + pile("Personnes morales", ["Nombre total Personnes morales :", PM.length], OBJL, compter(PM, r=>r.Objectif, OBJ)) +
+    pile("Personnes physiques", ["Nombre total Personnes physiques :", PP.length], OBJL, compter(PP, r=>r.Objectif, OBJ)) + `</div>`);
+
+  h += `<h3>1.4 Actualité des objectifs suivis, selon leur statut</h3>`;
+  const ETATS = [...ORDRE_ETATS.filter(e=>ch("PM.Etat_du_dossier").includes(e) || !choix["PM.Etat_du_dossier"]),
+                 ...ch("PM.Etat_du_dossier").filter(e=>!ORDRE_ETATS.includes(e))];
+  const nb = (rows, e, o) => rows.filter(r=>norm(r.Etat_du_dossier)===norm(e) && (!o || norm(r.Objectif)===norm(o))).length;
+  let t = `<table class="t"><thead><tr><th rowspan="2" class="l"></th><th colspan="3">Personnes morales</th><th colspan="3">Personnes physiques</th><th rowspan="2">Total</th></tr>`
+        + `<tr><th>Total</th><th>Intérêt national</th><th>Intérêt local</th><th>Total</th><th>Intérêt national</th><th>Intérêt local</th></tr></thead><tbody>`;
+  const ligneT = (lib, f, cls) => `<tr class="${cls||""}"><td class="l">${esc(lib)}</td>`
+      + [f(PM,null),f(PM,"National"),f(PM,"Local"),f(PP,null),f(PP,"National"),f(PP,"Local"),f(PM,null)+f(PP,null)].map(v=>`<td class="num">${v}</td>`).join("") + `</tr>`;
+  ETATS.forEach(e=>{ t += ligneT("Dossiers — "+e.toLowerCase(), (rows,o)=>nb(rows,e,o)); });
+  t += ligneT("Total", (rows,o)=>rows.filter(r=>!o || norm(r.Objectif)===norm(o)).length, "tot");
+  h += carte("Objectifs suivis par état du dossier", t + `</tbody></table>`);
+
+  h += `<h3>1.5 Répartition des objectifs suivis, par statut juridique (personnes morales)</h3>`;
+  const STAT = ch("PM.Statut_juridique");
+  h += grille(barresH("Statuts juridiques des objectifs", STAT, compter(PM, r=>r.Statut_juridique, STAT)));
+
+  h += `<h3>1.6 Nationalité / sexe des objectifs suivis (personnes physiques)</h3>`;
+  const NAT = [...NATIONALITES];
+  const natV = PP.map(r=>nationalite(r.Nationalite));
+  if(natV.includes("Autre (à reclasser)")) NAT.push("Autre (à reclasser)");
+  const SEXE = ch("PP.sexe");
+  h += grille(
+    camembert("Nationalité", NAT, NAT.map(n=>natV.filter(v=>v===n).length),
+      natV.includes("Autre (à reclasser)") ? {sous:"« Autre (à reclasser) » : nationalité saisie hors des quatre catégories"} : {}),
+    camembert("Sexe des personnes", SEXE, compter(PP, r=>r.sexe, SEXE)));
+
   
   el("rapport").innerHTML = h;
   rendreRepliable(el("rapport"), "h2.sec");   // parties 1 à 4
