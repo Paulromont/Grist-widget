@@ -326,7 +326,34 @@ function rendre(){
     camembert("Mouvances des personnes morales et physiques", MOUV, compter(tous, r=>r.Mouvance, MOUV)));
   
   el("rapport").innerHTML = h;
+  rendreRepliable(el("rapport"), "h2.sec");   // parties 1 à 4
+  rendreRepliable(el("rapport"), "h3");       // sous-parties (1.1, 1.2…)
 }
+
+/* ---------- sections repliables ---------- */
+// Transforme chaque titre (et tout ce qui le suit jusqu'au titre suivant) en bloc repliable.
+// Les sections repliées sont mémorisées par leur titre, pour rester repliées quand on change de filtre.
+const replies = new Set();
+function rendreRepliable(racine, selecteur){
+  [...racine.querySelectorAll(selecteur)].forEach(titre=>{
+    const cle = titre.textContent.trim();
+    const bloc = document.createElement("details"); bloc.className = "pli"; bloc.open = !replies.has(cle);
+    const resume = document.createElement("summary");
+    titre.parentNode.insertBefore(bloc, titre);
+    resume.appendChild(titre); bloc.appendChild(resume);
+    let n = bloc.nextSibling;                       // on range dans le bloc tout ce qui suit le titre…
+    while(n && !(n.nodeType===1 && (n.matches(selecteur) || n.matches("details.pli")))){   // …jusqu'au titre suivant
+      const suivant = n.nextSibling; bloc.appendChild(n); n = suivant;
+    }
+    bloc.addEventListener("toggle", ()=>{ bloc.open ? replies.delete(cle) : replies.add(cle); });
+  });
+}
+function toutBasculer(ouvrir){
+  document.querySelectorAll("details.pli").forEach(d=>{ d.open = ouvrir; });
+}
+
+el("toutOuvrir").onclick = ()=>toutBasculer(true);
+el("toutFermer").onclick = ()=>toutBasculer(false);
 el("dept").onchange = rendre;
 el("annee").onchange = rendre;
 el("mois").onchange = rendre;
