@@ -390,8 +390,6 @@ function toutBasculer(ouvrir){
   document.querySelectorAll("details.pli").forEach(d=>{ d.open = ouvrir; });
 }
 
-el("toutOuvrir").onclick = ()=>toutBasculer(true);
-el("toutFermer").onclick = ()=>toutBasculer(false);
 el("dept").onchange = rendre;
 el("annee").onchange = rendre;
 el("mois").onchange = rendre;
