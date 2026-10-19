@@ -274,25 +274,48 @@ function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsA
   }
   return rows;
 }
-// Export personnalisé : texte renvoyé à la ligne, aligné en haut, lignes à la bonne hauteur, en-tête en gras
+// Export personnalisé : bordures, texte renvoyé à la ligne, aligné en haut, lignes à la bonne hauteur, en-tête en gras
+const TRAIT = { style:"thin", color:{ rgb:"808080" } };
 function mettreEnForme(ws, rows){
-  const cols = ws["!cols"];
-  rows[0].forEach((titre, j)=>{ if(titre==="Contrôle(s)" || titre==="Entrave(s)") cols[j] = { wch: 70 }; });
+  // largeurs : colonnes de la fiche limitées à 22 caractères (le texte passe à la ligne), actions à 55
+  const cols = ws["!cols"] = rows[0].map((titre, j)=>
+    (titre==="Contrôle(s)" || titre==="Entrave(s)") ? { wch: 55 } : { wch: Math.min(ws["!cols"][j].wch, 22) });
   const hauteurs = [];
   rows.forEach((r, i)=>{
     let nbLignes = 1;
     r.forEach((v, j)=>{
       const adr = XLSX.utils.encode_cell({r:i, c:j});
-      if(!ws[adr]) return;
-      ws[adr].s = { alignment:{ wrapText:true, vertical:"top" } };
-      if(i===0) ws[adr].s.font = { bold:true };
+      if(!ws[adr]) ws[adr] = { t:"s", v:"" };            // cellule vide : on la crée pour lui dessiner ses bordures
+      ws[adr].s = { alignment:{ wrapText:true, vertical:"top" },
+                    border:{ top:TRAIT, bottom:TRAIT, left:TRAIT, right:TRAIT } };
+      if(i===0){ ws[adr].s.font = { bold:true }; ws[adr].s.fill = { fgColor:{ rgb:"E1F2F1" } }; }
       // nombre de lignes affichées : retours à la ligne + texte trop long pour la largeur de la colonne
-      const n = String(v==null?"":v).split("\n").reduce((t, l)=> t + Math.max(1, Math.ceil(l.length / (cols[j].wch - 1))), 0);
+      const n = String(v==null?"":v).split("\n").reduce((t, l)=> t + Math.max(1, Math.ceil(l.length / (cols[j].wch * 1.25))), 0);
       if(n > nbLignes) nbLignes = n;
     });
-    hauteurs.push({ hpt: Math.min(409, nbLignes * 15 + 3) });   // 15 points par ligne ; 409 = maximum d'Excel
+    hauteurs.push({ hpt: Math.min(409, nbLignes * 13 + 4) });   // 13 points par ligne ; 409 = maximum d'Excel
   });
   ws["!rows"] = hauteurs;
+  ws["!margins"] = { left:0.4, right:0.4, top:0.5, bottom:0.5, header:0.3, footer:0.3 };   // en pouces
+}
+// Mise en page pour l'impression (la bibliothèque ne sait pas l'écrire, on l'ajoute dans le fichier) :
+// A3 paysage, toutes les colonnes sur la largeur d'une page, ligne d'en-tête répétée sur chaque page
+function ecrireAvecMiseEnPage(wb, nom){
+  wb.Workbook = { Names: wb.SheetNames.map((n, i)=>({ Name:"_xlnm.Print_Titles", Sheet:i, Ref:"'"+n+"'!$1:$1" })) };
+  const zip = XLSX.CFB.read(new Uint8Array(XLSX.write(wb, { type:"array", bookType:"xlsx" })), { type:"buffer" });
+  wb.SheetNames.forEach((_, i)=>{
+    const f = XLSX.CFB.find(zip, "/xl/worksheets/sheet"+(i+1)+".xml");
+    const xml = new TextDecoder().decode(f.content)
+      .replace(/(<worksheet[^>]*>)/, '$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>')
+      .replace(/(<pageMargins[^>]*\/>)/, '$1<pageSetup paperSize="8" orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
+    f.content = new TextEncoder().encode(xml);
+  });
+  const fichier = new Blob([XLSX.CFB.write(zip, { fileType:"zip", type:"array" })],
+                           { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(fichier); lien.download = nom;
+  document.body.appendChild(lien); lien.click(); lien.remove();
+  setTimeout(()=>URL.revokeObjectURL(lien.href), 5000);
 }
 function largeurs(rows){
   const w = [];
@@ -406,7 +429,7 @@ async function exporter(mode, opts){
     if(!wb.SheetNames.length){ setEtat("Aucune fiche à exporter pour cette sélection ou cette période.", "err"); return; }
     const date = new Date().toISOString().slice(0,10);
     const nom = "export_" + (mode==="TOUT"?"PM_PP":mode) + (opts?"_"+opts.suffixe:"") + (codePeriode()?"_periode-"+codePeriode():"") + "_extrait-le-" + date + ".xlsx";
-    XLSX.writeFile(wb, nom);
+    if(opts) ecrireAvecMiseEnPage(wb, nom); else XLSX.writeFile(wb, nom);
     setEtat("Fichier généré : " + nom + " (" + total + " entité(s)).", "ok");
   }catch(err){
     console.error(err);
