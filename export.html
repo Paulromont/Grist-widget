@@ -227,18 +227,37 @@ function dateAction(a){
 }
 
 // champsAction : liste des champs d'action à sortir ; vide = aucune colonne d'action
-function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsAction){
+// Export personnalisé : toutes les actions dans une seule cellule, une action par ligne
+// ex. « • Type : Fermeture administrative — Date de déclenchement : 12/03/2026 — Service menant : Préfecture »
+function fmtActions(acts, ACTION, ctx){
+  return acts.map(a=>{
+    const morceaux = ACTION.map(c=>{ const v = fmt(a[c.id], c.type, ctx); return v==="" ? "" : c.label+" : "+v; }).filter(Boolean);
+    return "• " + morceaux.join(" — ");
+  }).join("\n");
+}
+const estEntrave = a => String(a.Nature_du_controle_entrave||"").toLowerCase().includes("entrave");
+
+// enCellule = true (export personnalisé) : colonnes « Contrôle(s) » et « Entrave(s) » au lieu des 8 actions
+function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsAction, enCellule){
   const ACTION = champsAction || ACTION_TOUS;
   const header = champsEntite.map(c=>c.label);
   if(ACTION.length){
-    for(let n=1;n<=MAX;n++) for(const c of ACTION) header.push("Action "+n+" - "+c.label);
-    header.push("Actions supplémentaires");
+    if(enCellule){
+      header.push("Contrôle(s)", "Entrave(s)");
+    }else{
+      for(let n=1;n<=MAX;n++) for(const c of ACTION) header.push("Action "+n+" - "+c.label);
+      header.push("Actions supplémentaires");
+    }
   }
   const rows = [header];
   for(const e of entites){
     const row = champsEntite.map(c=> c.type==="liees" ? fmtLiees(e, c, ctx) : fmt(e[c.id], c.type, ctx));
     if(!ACTION.length){ rows.push(row); continue; }
     const acts = (actionsParEntite[e.id]||[]).slice().sort((a,b)=>dateAction(a)-dateAction(b));
+    if(enCellule){
+      row.push(fmtActions(acts.filter(a=>!estEntrave(a)), ACTION, ctx), fmtActions(acts.filter(estEntrave), ACTION, ctx));
+      rows.push(row); continue;
+    }
     for(let n=0;n<MAX;n++){
       const a = acts[n];
       for(const c of ACTION) row.push(a ? fmt(a[c.id], c.type, ctx) : "");
@@ -356,7 +375,7 @@ async function exporter(mode, opts){
         champs = champs.filter(c=>opts.champs[type].includes(c.id));
         if(!entites.length) return;
       }
-      const rows = construireFeuille(entites, champs, parEntite, D.ctx, champsAction);
+      const rows = construireFeuille(entites, champs, parEntite, D.ctx, champsAction, !!opts);
       const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = largeurs(rows);
       XLSX.utils.book_append_sheet(wb, ws, nomFeuille);
       total += entites.length;
