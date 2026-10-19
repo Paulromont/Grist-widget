@@ -84,23 +84,23 @@ const SECTIONS = [
   { titre:null, champs:[
     {id:"Dates_passage_CLIR",  label:"Date(s) de passage en CLIR", type:"date"},
   ]},
-  { titre:"Présentation de l'entité", champs:[
+  { titre:"Identité de l'objectif", champs:[
     {id:"Pseudonyme",       label:"Pseudonyme", type:"text"},
     {id:"Etat_du_dossier",  label:"État du dossier", type:"choice"},
     {id:"Affiliation",      label:"Affiliation", type:"choice"},
     {id:"Mouvance",         label:"Mouvance", type:"choice"},
     {id:"Objectif",         label:"Objectif d'intérêt local / national", type:"choice", large:true},
     {id:"Ville",            label:"Ville", type:"text"},
-    {id:"Autres_adresses",  label:"Autres adresses de l'entité", type:"text"},
+    {id:"Autres_adresses",  label:"Autre(s) adresse(s) de l'objectif", type:"text"},
     {id:"Statut_juridique", label:"Statut juridique", type:"choice"},
     {id:"Date_creation",    label:"Date de création de la structure", type:"date"},
     {id:"Numero_RNA",       label:"Numéro RNA", type:"text"},
     {id:"Numero_SIRET",     label:"Numéro SIRET", type:"text"},
   ]},
-  { titre:"Domaine d'activité", champs:[
-    {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne", type:"choice", large:true},
-    {id:"Domaine_declare_1", label:"Domaines d'activités déclarés", type:"choicelist"},
-    {id:"Domaine_reel_2",    label:"Domaines d'activités réels", type:"choicelist"},
+  { titre:"Domaine(s) d'activité", champs:[
+    {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne ou les deux", type:"choice", large:true},
+    {id:"Domaine_declare_1", label:"Domaine(s) d'activité déclaré(s)  (choix multiples possibles)", type:"choicelist"},
+    {id:"Domaine_reel_2",    label:"Domaine(s) d'activité réel(s)  (choix multiples possibles)", type:"choicelist"},
   ]},
   { titre:"Signalement d'origine", champs:[
     {id:"Date_signalement",       label:"Date du signalement d'origine", type:"date"},
@@ -109,12 +109,12 @@ const SECTIONS = [
     {id:"Commentaire_signalement",label:"Commentaires", type:"textarea", large:true},
   ]},
   { titre:"Éléments de contexte", champs:[
-    {id:"Dirigeants",          label:"Dirigeants", type:"textarea"},
-    {id:"Personnels_benevoles",label:"Personnels / bénévoles", type:"textarea"},
+    {id:"Dirigeants",          label:"Dirigeant(s)", type:"textarea"},
+    {id:"Personnels_benevoles",label:"Personnel(s) / bénévole(s)", type:"textarea"},
     {bloc:"liees"},
-    {id:"Points_vigilance",    label:"Points de vigilance", type:"textarea"},
-    {id:"Projet_controle",     label:"Projets de contrôle", type:"textarea"},
-    {id:"Champs_libre",        label:"Champs libre (autres éléments de contexte)", type:"textarea", large:true},
+    {id:"Points_vigilance",    label:"Point(s) de vigilance", type:"textarea"},
+    {id:"Projet_controle",     label:"Projet(s) de contrôle", type:"textarea"},
+    {id:"Champs_libre",        label:"Champ libre (autres éléments de contexte)", type:"textarea", large:true},
   ]},
 ];
 const TABLE_ENTITE = "PM";
@@ -122,15 +122,15 @@ const TABLE_ENTITE = "PM";
 const LIEES = {
   table:"Personnes_liees", refCol:"PM", typeCol:"Type_personne",
   groupes:[
-    { type:"Physique", titre:"Personnes physiques liées", cols:[
+    { type:"Physique", titre:"Personne(s) physique(s) liée(s)", cols:[
       {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
       {id:"Fonctions", label:"Fonctions", type:"text"},
       {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
       {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
     ]},
-    { type:"Morale", titre:"Personnes morales liées", cols:[
+    { type:"Morale", titre:"Personne(s) morale(s) liée(s)", cols:[
       {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
-      {id:"Activites_reelles", label:"Activités réelles", type:"text"},
+      {id:"Activites_reelles", label:"Activité(s) réelle(s)", type:"text"},
       {id:"Nature_des_liens", label:"Nature des liens", type:"text"},
       {id:"Suivi_CLIR", label:"Suivi en CLIR", type:"bool"},
     ]},
@@ -312,9 +312,9 @@ function rendre(){
     }
     html += `</div>`;
   }
-  html += `<h2 class="section">Actions de contr\u00f4le</h2><div id="zoneCtrl"></div>
+  html += `<h2 class="section">Action(s) de contr\u00f4le</h2><div id="zoneCtrl"></div>
            <button class="sec" id="btnAddCtrl">+ Ajouter un contr\u00f4le</button>`;
-  html += `<h2 class="section">Actions d'entrave</h2><div id="zoneEntrave"></div>
+  html += `<h2 class="section">Action(s) d'entrave</h2><div id="zoneEntrave"></div>
            <button class="sec" id="btnAddEntrave">+ Ajouter une entrave</button>`;
   el("contenu").innerHTML = html;
   rendreLiees();
@@ -367,8 +367,8 @@ function rendreControles(depuisChangement){
     h += `</div></div>`;
     if(estEntrave) htmlE += h; else htmlC += h;
   });
-  if(zC) zC.innerHTML = htmlC || `<p class="vide">Aucun contr\u00f4le pour cette entit\u00e9.</p>`;
-  if(zE) zE.innerHTML = htmlE || `<p class="vide">Aucune entrave pour cette entit\u00e9.</p>`;
+  if(zC) zC.innerHTML = htmlC || `<p class="vide">Aucun contr\u00f4le pour cet objectif.</p>`;
+  if(zE) zE.innerHTML = htmlE || `<p class="vide">Aucune entrave pour cet objectif.</p>`;
   document.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
     capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
