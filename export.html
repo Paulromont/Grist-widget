@@ -280,22 +280,14 @@ function mettreEnForme(ws, rows){
   // largeurs : colonnes de la fiche limitées à 22 caractères (le texte passe à la ligne), actions à 55
   const cols = ws["!cols"] = rows[0].map((titre, j)=>
     (titre==="Contrôle(s)" || titre==="Entrave(s)") ? { wch: 55 } : { wch: Math.min(ws["!cols"][j].wch, 22) });
-  const hauteurs = [];
-  rows.forEach((r, i)=>{
-    let nbLignes = 1;
-    r.forEach((v, j)=>{
-      const adr = XLSX.utils.encode_cell({r:i, c:j});
-      if(!ws[adr]) ws[adr] = { t:"s", v:"" };            // cellule vide : on la crée pour lui dessiner ses bordures
-      ws[adr].s = { alignment:{ wrapText:true, vertical:"top" },
-                    border:{ top:TRAIT, bottom:TRAIT, left:TRAIT, right:TRAIT } };
-      if(i===0){ ws[adr].s.font = { bold:true }; ws[adr].s.fill = { fgColor:{ rgb:"E1F2F1" } }; }
-      // nombre de lignes affichées : retours à la ligne + texte trop long pour la largeur de la colonne
-      const n = String(v==null?"":v).split("\n").reduce((t, l)=> t + Math.max(1, Math.ceil(l.length / (cols[j].wch * 1.25))), 0);
-      if(n > nbLignes) nbLignes = n;
-    });
-    hauteurs.push({ hpt: Math.min(409, nbLignes * 13 + 4) });   // 13 points par ligne ; 409 = maximum d'Excel
-  });
-  ws["!rows"] = hauteurs;
+  rows.forEach((r, i)=> r.forEach((v, j)=>{
+    const adr = XLSX.utils.encode_cell({r:i, c:j});
+    if(!ws[adr]) ws[adr] = { t:"s", v:"" };            // cellule vide : on la crée pour lui dessiner ses bordures
+    ws[adr].s = { alignment:{ wrapText:true, vertical:"top" },
+                  border:{ top:TRAIT, bottom:TRAIT, left:TRAIT, right:TRAIT } };
+    if(i===0){ ws[adr].s.font = { bold:true }; ws[adr].s.fill = { fgColor:{ rgb:"E1F2F1" } }; }
+  }));
+  // pas de hauteur de ligne imposée : Excel et LibreOffice ajustent eux-mêmes chaque ligne à son contenu
   ws["!margins"] = { left:0.4, right:0.4, top:0.5, bottom:0.5, header:0.3, footer:0.3 };   // en pouces
 }
 // Mise en page pour l'impression (la bibliothèque ne sait pas l'écrire, on l'ajoute dans le fichier) :
