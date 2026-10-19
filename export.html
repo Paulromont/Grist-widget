@@ -96,11 +96,11 @@
 const MAX = 8;   // nombre d'actions détaillées en colonnes
 
 const ENTITE_PM = [
-  {id:"Etat_du_dossier",label:"État du dossier",type:"text"},
+  {id:"Etat_du_dossier",label:"État du suivi",type:"text"},
   {id:"Affiliation",label:"Affiliation",type:"text"},
   {id:"Mouvance",label:"Mouvance",type:"text"},
   {id:"Pseudonyme",label:"Pseudonyme",type:"text"},
-  {id:"Objectif",label:"Objectif",type:"text"},
+  {id:"Objectif",label:"OIN / OIL",type:"text"},
   {id:"Departement",label:"Département",type:"text"},
   {id:"Ville",label:"Ville",type:"text"},
   {id:"Autres_adresses",label:"Autres adresses",type:"text"},
@@ -109,43 +109,43 @@ const ENTITE_PM = [
   {id:"Numero_RNA",label:"Numéro RNA",type:"text"},
   {id:"Numero_SIRET",label:"Numéro SIRET",type:"text"},
   {id:"Activite_presentiel_ligne",label:"Activité présentiel/en ligne",type:"text"},
-  {id:"Domaine_declare_1",label:"Domaines déclarés",type:"list"},
-  {id:"Domaine_reel_2",label:"Domaines réels",type:"list"},
+  {id:"Domaine_declare_1",label:"Domaine(s) d'activité déclaré(s)",type:"list"},
+  {id:"Domaine_reel_2",label:"Domaine(s) d'activité réel(s)",type:"list"},
   {id:"Date_signalement",label:"Date du signalement",type:"date"},
   {id:"Service_signalant",label:"Service signalant",type:"text"},
   {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
   {id:"Commentaire_signalement",label:"Commentaire",type:"text"},
-  {id:"Dirigeants",label:"Dirigeants",type:"text"},
-  {id:"Personnels_benevoles",label:"Personnels bénévoles",type:"text"},
-  {id:"_liees_Physique",label:"Personnes physiques liées",type:"liees",ref:"PM",groupe:"Physique"},
-  {id:"_liees_Morale",label:"Personnes morales liées",type:"liees",ref:"PM",groupe:"Morale"},
+  {id:"Dirigeants",label:"Dirigeant(s)",type:"text"},
+  {id:"Personnels_benevoles",label:"Personnel(s) / bénévole(s)",type:"text"},
+  {id:"_liees_Physique",label:"Personne(s) physique(s) liée(s)",type:"liees",ref:"PM",groupe:"Physique"},
+  {id:"_liees_Morale",label:"Personne(s) morale(s) liée(s)",type:"liees",ref:"PM",groupe:"Morale"},
   {id:"Points_vigilance",label:"Points de vigilance",type:"text"},
-  {id:"Projet_controle",label:"Projet de contrôle",type:"text"},
+  {id:"Projet_controle",label:"Projet(s) de contrôle",type:"text"},
   {id:"Dates_passage_CLIR",label:"Dates de passage en CLIR",type:"date"},
-  {id:"Champs_libre",label:"Champs libre",type:"text"},
+  {id:"Champs_libre",label:"Champ libre",type:"text"},
 ];
 
 const ENTITE_PP = [
-  {id:"Etat_du_dossier",label:"État du dossier",type:"text"},
+  {id:"Etat_du_dossier",label:"État du suivi",type:"text"},
   {id:"Pseudonyme",label:"Pseudonyme",type:"text"},
   {id:"sexe",label:"Sexe",type:"text"},
   {id:"Nationalite",label:"Nationalité",type:"text"},
   {id:"Affiliation",label:"Affiliation",type:"text"},
   {id:"Mouvance",label:"Mouvance",type:"text"},
-  {id:"Objectif",label:"Objectif",type:"text"},
+  {id:"Objectif",label:"OIN / OIL",type:"text"},
   {id:"Departement",label:"Département",type:"text"},
   {id:"Ville",label:"Ville",type:"text"},
   {id:"Activite_s_justfiant_le_suivi",label:"Activité(s) justifiant le suivi",type:"list"},
   {id:"Date_signalement",label:"Date du signalement",type:"date"},
   {id:"Service_signalant",label:"Service signalant",type:"text"},
   {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
-  {id:"commentaires",label:"Commentaires",type:"text"},
-  {id:"_liees_Physique",label:"Personnes physiques liées",type:"liees",ref:"PP",groupe:"Physique"},
-  {id:"_liees_Morale",label:"Personnes morales liées",type:"liees",ref:"PP",groupe:"Morale"},
-  {id:"Projet_de_controle",label:"Projet de contrôle",type:"text"},
-  {id:"Dates_de_passage_en_CLIR",label:"Dates de passage en CLIR",type:"date"},
-  {id:"Points_vigilance",label:"Points de vigilance",type:"text"},
-  {id:"Champs_libre",label:"Champs libre",type:"text"},
+  {id:"commentaires",label:"Commentaire(s)",type:"text"},
+  {id:"_liees_Physique",label:"Personne(s) physique(s) liée(s)",type:"liees",ref:"PP",groupe:"Physique"},
+  {id:"_liees_Morale",label:"Personne(s) morale(s) liée(s)",type:"liees",ref:"PP",groupe:"Morale"},
+  {id:"Projet_de_controle",label:"Projet(s) de contrôle",type:"text"},
+  {id:"Dates_de_passage_en_CLIR",label:"Date(s) de passage en CLIR",type:"date"},
+  {id:"Points_vigilance",label:"Point(s) de vigilance",type:"text"},
+  {id:"Champs_libre",label:"Champ libre",type:"text"},
 ];
 
 // Champs d'une action (contrôle ou entrave), dans l'ordre
@@ -154,18 +154,18 @@ const ACTION_TOUS = [
   {id:"Categorie",label:"Catégorie",type:"text"},
   {id:"Type_controle",label:"Type",type:"ref"},
   {id:"Type_libre",label:"Type (libre)",type:"text"},
-  {id:"Date_declenchement",label:"Date déclenchement",type:"date"},
-  {id:"Date_cloture",label:"Date clôture",type:"date"},
-  {id:"Date_notification",label:"Date notification",type:"date"},
+  {id:"Date_declenchement",label:"Date de déclenchement",type:"date"},
+  {id:"Date_cloture",label:"Date de clôture",type:"date"},
+  {id:"Date_notification",label:"Date de notification",type:"date"},
   {id:"Duree_jours",label:"Durée (jours)",type:"num"},
   {id:"Motif_ERP",label:"Motif ERP",type:"bool"},
   {id:"Service_menant",label:"Service menant",type:"text"},
-  {id:"Service_partenaire_1",label:"Services partenaires",type:"list"},
-  {id:"Montant_notifie",label:"Montants notifiés (€)",type:"num"},
-  {id:"Montant_recouvre",label:"Montants recouvrés (€)",type:"num"},
+  {id:"Service_partenaire_1",label:"Service(s) partenaire(s)",type:"list"},
+  {id:"Montant_notifie",label:"Montant notifié (€)",type:"num"},
+  {id:"Montant_recouvre",label:"Montant recouvré (€)",type:"num"},
   {id:"Montant_applicable",label:"Montant applicable (€)",type:"num"},
   {id:"Controles_origine",label:"Contrôle(s) à l'origine",type:"reflist"},
-  {id:"Commentaires",label:"Commentaires",type:"text"},
+  {id:"Commentaires",label:"Commentaire",type:"text"},
 ];
 // Personnes liées (table Personnes_liees) : sous-champs repris dans la cellule, par type de personne
 const LIEES_CHAMPS = {
@@ -389,6 +389,14 @@ function memoEcrire(v){ try{ localStorage.setItem(MEMO, JSON.stringify(v)); }cat
 function caseHtml(groupe, id, label, coche){
   return `<label><input type="checkbox" data-g="${groupe}" value="${esc(id)}"${coche?" checked":""}> ${esc(label)}</label>`;
 }
+
+// Colonnes cochées à l'ouverture du panneau (toujours les mêmes)
+const DEFAUT = {
+  PM:  ["Pseudonyme","Etat_du_dossier","Departement","Ville","Affiliation","Mouvance","Objectif","Dates_passage_CLIR"],
+  PP:  ["Pseudonyme","Etat_du_dossier","Departement","Ville","Affiliation","Mouvance","Objectif","Dates_de_passage_en_CLIR"],
+  ACT: ["Nature_du_controle_entrave","Type_controle","Date_declenchement","Service_menant"]
+};
+  
 function rendreColonnes(){
   const memo = memoLire() || {};
   const coche = (g,id)=> memo[g] ? memo[g].includes(id) : true;     // par défaut : tout coché
