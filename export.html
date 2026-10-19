@@ -274,33 +274,52 @@ function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsA
   }
   return rows;
 }
-// Export personnalisé : bordures, texte renvoyé à la ligne, aligné en haut, lignes à la bonne hauteur, en-tête en gras
+// Export personnalisé : bordures, texte renvoyé à la ligne, aligné en haut, en-tête en gras,
+// largeur des colonnes et hauteur des lignes ajustées au contenu.
 const TRAIT = { style:"thin", color:{ rgb:"808080" } };
-const LARGEUR_PAGE = 230;   // largeur totale visée, en caractères (A3 paysage : l'impression réduit à environ 85 %)
-const MIN_ACTION = 50;      // largeur minimale des colonnes Contrôle(s) / Entrave(s)
-const LIGNES_TITRE = 2;     // un titre de colonne tient sur 2 lignes au maximum
+const LARGEUR_PAGE = 230;      // largeur totale visée, en caractères (A3 paysage : l'impression réduit à environ 85 %)
+const MIN_ACTION = 50;         // largeur minimale des colonnes Contrôle(s) / Entrave(s)
+const LIGNES_TITRE = 2;        // un titre de colonne tient sur 2 lignes au maximum
 const LIGNES_SANS_ACTION = 2;  // fiche sans action : ses cellules tiennent sur 2 lignes au maximum
 
-// Nombre de lignes qu'occupe un texte dans une colonne de largeur w.
-// Le tableur ne coupe qu'aux espaces ; k = caractères par unité de largeur (plus petit pour le gras).
-function nbLignesTexte(v, w, k){
-  const parLigne = Math.max(1, Math.floor(w * k));
+/* Mesure du texte : on fait comme Excel quand on double-clique sur le bord d'une colonne.
+   Le navigateur dessine le texte dans la police du fichier (Calibri 11, déjà présente sous Windows)
+   et donne sa largeur exacte en pixels. La largeur d'une colonne Excel se compte en « largeur du chiffre 0 » :
+   on divise donc par la largeur de « 0 » dans la même police. */
+const POLICE = "Calibri, Carlito, sans-serif";
+const pinceau = document.createElement("canvas").getContext("2d");
+const memoLargeur = new Map();
+function largeurTexte(t, gras){           // largeur d'un texte, en « chiffres 0 »
+  const cle = (gras ? "g" : "n") + t;
+  if(!memoLargeur.has(cle)){
+    pinceau.font = (gras ? "bold " : "") + "11pt " + POLICE;
+    const zero = pinceau.measureText("0").width;
+    memoLargeur.set(cle, pinceau.measureText(t).width / zero);
+  }
+  return memoLargeur.get(cle);
+}
+// Nombre de lignes qu'occupe un texte dans une colonne de largeur w, en coupant aux espaces comme Excel.
+// On garde une demi-unité de marge pour le petit espace qu'Excel laisse au bord de la cellule.
+function nbLignesTexte(v, w, gras){
+  const utile = w - 0.5, espace = largeurTexte(" ", gras);
   let n = 0;
   for(const ligne of String(v==null?"":v).split("\n")){
     let courant = 0; n++;
     for(const mot of ligne.split(" ")){
-      if(courant && courant + 1 + mot.length > parLigne){ n++; courant = mot.length; }
-      else courant += (courant ? 1 : 0) + mot.length;
-      while(courant > parLigne){ n++; courant -= parLigne; }   // mot plus long que la colonne
+      const lm = largeurTexte(mot, gras);
+      if(courant && courant + espace + lm > utile){ n++; courant = lm; }
+      else courant += (courant ? espace : 0) + lm;
+      while(courant > utile){ n++; courant -= utile; }   // mot plus long que la colonne : Excel le coupe
     }
   }
   return n;
 }
-// Plus petite largeur pour laquelle le texte tient en « max » lignes, sans jamais couper un mot en deux
-function largeurMini(v, max, k){
-  const motLong = Math.max(0, ...String(v==null?"":v).split(/\s+/).map(m=>m.length));
-  for(let w = Math.max(4, Math.ceil((motLong + 1) / k)); w < 80; w++) if(nbLignesTexte(v, w, k) <= max) return w;
-  return 80;
+// Plus petite largeur (au demi-caractère près) pour laquelle le texte tient en « max » lignes, sans couper de mot
+function largeurMini(v, max, gras){
+  const mots = String(v==null?"":v).split(/\s+/);
+  let w = Math.ceil((Math.max(0, ...mots.map(m=>largeurTexte(m, gras))) + 0.5) * 2) / 2;
+  while(w < 100 && nbLignesTexte(v, w, gras) > max) w += 0.5;
+  return w;
 }
 
 function mettreEnForme(ws, rows){
@@ -308,28 +327,28 @@ function mettreEnForme(ws, rows){
   const titres = rows[0], corps = rows.slice(1);
   const jAct = titres.map((t, j)=> estAction(t) ? j : -1).filter(j=>j>=0);
   const jFiche = titres.map((t, j)=> estAction(t) ? -1 : j).filter(j=>j>=0);
+  const titreMini = {}; jFiche.forEach(j=>{ titreMini[j] = largeurMini(titres[j], LIGNES_TITRE, true); });
 
-  // 1. chaque colonne de la fiche : la plus étroite possible avec un titre sur 2 lignes maximum
+  // 1. chaque colonne de la fiche : la plus étroite possible avec son titre sur 2 lignes maximum
   const w = [];
-  jFiche.forEach(j=>{ w[j] = largeurMini(titres[j], LIGNES_TITRE, 0.9); });
-  // 2. les colonnes d'actions se partagent la place restante ; on en déduit la hauteur de chaque ligne,
-  //    puis on élargit une colonne de la fiche seulement si l'une de ses cellules dépasse cette hauteur.
-  //    On recommence 3 fois, car élargir la fiche rétrécit les actions (et donc rallonge les lignes).
+  jFiche.forEach(j=>{ w[j] = titreMini[j]; });
+  // 2. les colonnes d'actions se partagent la place restante. Pour chaque ligne, on prend la plus haute
+  //    des deux cellules Contrôle(s) / Entrave(s) ; si une cellule de la fiche ne tient pas dans cette hauteur,
+  //    on élargit sa colonne juste assez. On recommence 3 fois, car élargir la fiche rétrécit les actions.
   for(let tour = 0; tour < 3; tour++){
     const reste = LARGEUR_PAGE - jFiche.reduce((t, j)=> t + w[j], 0);
     jAct.forEach(j=>{ w[j] = Math.max(MIN_ACTION, Math.floor(reste / jAct.length)); });
     const hauteurAct = corps.map(r=>{
-      const n = Math.max(0, ...jAct.map(j=> r[j] ? nbLignesTexte(r[j], w[j], 1.0) : 0));
+      const n = Math.max(0, ...jAct.map(j=> r[j] ? nbLignesTexte(r[j], w[j], false) : 0));
       return n || LIGNES_SANS_ACTION;
     });
     jFiche.forEach(j=>{
-      const titre = largeurMini(titres[j], LIGNES_TITRE, 0.9);
-      w[j] = Math.max(titre, ...corps.map((r, i)=> r[j] ? largeurMini(r[j], hauteurAct[i], 1.0) : 0));
+      w[j] = Math.max(titreMini[j], ...corps.map((r, i)=> r[j] ? largeurMini(r[j], hauteurAct[i], false) : 0));
     });
   }
   ws["!cols"] = titres.map((_, j)=>({ wch: w[j] }));
 
-  // 3. styles et hauteur de chaque ligne (15 points par ligne de texte ; 409 = maximum d'Excel)
+  // 3. styles, et hauteur de chaque ligne = sa cellule la plus haute (15 points par ligne de texte dans Excel)
   const hauteurs = [];
   rows.forEach((r, i)=>{
     let nb = 1;
@@ -339,9 +358,9 @@ function mettreEnForme(ws, rows){
       ws[adr].s = { alignment:{ wrapText:true, vertical:"top" },
                     border:{ top:TRAIT, bottom:TRAIT, left:TRAIT, right:TRAIT } };
       if(i===0){ ws[adr].s.font = { bold:true }; ws[adr].s.fill = { fgColor:{ rgb:"E1F2F1" } }; }
-      nb = Math.max(nb, nbLignesTexte(v, w[j], i===0 ? 0.9 : 1.0));
+      nb = Math.max(nb, nbLignesTexte(v, w[j], i===0));
     });
-    hauteurs.push({ hpt: Math.min(409, nb * 15 + 3) });
+    hauteurs.push({ hpt: Math.min(409, nb * 15 + 3) });   // 409 = hauteur maximale d'Excel
   });
   ws["!rows"] = hauteurs;
   ws["!margins"] = { left:0.4, right:0.4, top:0.5, bottom:0.5, header:0.3, footer:0.3 };   // en pouces
