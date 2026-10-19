@@ -99,8 +99,10 @@ const SECTIONS = [
   ]},
   { titre:"Domaine(s) d'activité", champs:[
     {id:"Activite_presentiel_ligne", label:"Activité en présentiel ou en ligne ou les deux", type:"choice", large:true},
-    {id:"Domaine_declare_1", label:"Domaine(s) d'activité déclaré(s)  (choix multiples possibles)", type:"choicelist"},
-    {id:"Domaine_reel_2",    label:"Domaine(s) d'activité réel(s)  (choix multiples possibles)", type:"choicelist"},
+    {id:"Domaine_declare_1", label:"Domaine(s) d'activité déclaré(s)  (choix multiples possibles)", type:"choicelist",
+     labelHTML:"Domaine(s) d'activité <u>déclaré(s)</u>  (choix multiples possibles)"},
+    {id:"Domaine_reel_2",    label:"Domaine(s) d'activité réel(s)  (choix multiples possibles)", type:"choicelist",
+     labelHTML:"Domaine(s) d'activité <u>réel(s)</u>  (choix multiples possibles)"},
   ]},
   { titre:"Signalement d'origine", champs:[
     {id:"Date_signalement",       label:"Date du signalement d'origine", type:"date"},
@@ -308,7 +310,7 @@ function rendre(){
     html += sec.titre ? `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">` : `<div class="grille bandeau">`;
     for(const c of sec.champs){
       if(c.bloc==="liees"){ html += `</div><div id="zoneLiees"></div><div class="grille">`; continue; }
-      html += `<div class="champ ${c.large?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
+      html += `<div class="champ ${c.large?"large":""}"><label>${c.labelHTML || esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
     }
     html += `</div>`;
   }
