@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Export brut — recherche</title>
 <script src="https://grist.numerique.gouv.fr/grist-plugin-api.js"></script>
-<!-- Bibliothèque Excel (SheetJS 0.18.5), copiée dans le dépôt pour ne plus dépendre d un CDN externe -->
-<script src="xlsx.full.min.js"></script>
+<!-- Bibliothèque Excel : xlsx-js-style 1.2.0 (SheetJS 0.18.5 + mise en forme des cellules), copiée dans le dépôt -->
+<script src="xlsx-style.min.js"></script>
 <style>
   body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#2E2E2E; margin:0; padding:20px; background:#fff;}
   h1{font-size:16px; color:#1F4E79; margin:0 0 4px;}
@@ -274,6 +274,26 @@ function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsA
   }
   return rows;
 }
+// Export personnalisé : texte renvoyé à la ligne, aligné en haut, lignes à la bonne hauteur, en-tête en gras
+function mettreEnForme(ws, rows){
+  const cols = ws["!cols"];
+  rows[0].forEach((titre, j)=>{ if(titre==="Contrôle(s)" || titre==="Entrave(s)") cols[j] = { wch: 70 }; });
+  const hauteurs = [];
+  rows.forEach((r, i)=>{
+    let nbLignes = 1;
+    r.forEach((v, j)=>{
+      const adr = XLSX.utils.encode_cell({r:i, c:j});
+      if(!ws[adr]) return;
+      ws[adr].s = { alignment:{ wrapText:true, vertical:"top" } };
+      if(i===0) ws[adr].s.font = { bold:true };
+      // nombre de lignes affichées : retours à la ligne + texte trop long pour la largeur de la colonne
+      const n = String(v==null?"":v).split("\n").reduce((t, l)=> t + Math.max(1, Math.ceil(l.length / (cols[j].wch - 1))), 0);
+      if(n > nbLignes) nbLignes = n;
+    });
+    hauteurs.push({ hpt: Math.min(409, nbLignes * 15 + 3) });   // 15 points par ligne ; 409 = maximum d'Excel
+  });
+  ws["!rows"] = hauteurs;
+}
 function largeurs(rows){
   const w = [];
   for(let c=0;c<rows[0].length;c++){
@@ -377,6 +397,7 @@ async function exporter(mode, opts){
       }
       const rows = construireFeuille(entites, champs, parEntite, D.ctx, champsAction, !!opts);
       const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = largeurs(rows);
+      if(opts) mettreEnForme(ws, rows);
       XLSX.utils.book_append_sheet(wb, ws, nomFeuille);
       total += entites.length;
     };
