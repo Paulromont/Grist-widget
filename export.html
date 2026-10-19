@@ -392,14 +392,13 @@ function caseHtml(groupe, id, label, coche){
 
 // Colonnes cochées à l'ouverture du panneau (toujours les mêmes)
 const DEFAUT = {
-  PM:  ["Pseudonyme","Etat_du_dossier","Departement","Ville","Affiliation","Mouvance","Objectif","Dates_passage_CLIR"],
-  PP:  ["Pseudonyme","Etat_du_dossier","Departement","Ville","Affiliation","Mouvance","Objectif","Dates_de_passage_en_CLIR"],
-  ACT: ["Nature_du_controle_entrave","Type_controle","Date_declenchement","Service_menant"]
+  PM:  ["Dates_passage_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre"],
+  PP:  ["Dates_de_passage_en_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre"],
+  ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant""Service_partenaire_1","Controles_origine"]
 };
   
 function rendreColonnes(){
-  const memo = memoLire() || {};
-  const coche = (g,id)=> memo[g] ? memo[g].includes(id) : true;     // par défaut : tout coché
+  const coche = (g,id)=> DEFAUT[g].includes(id);     // toujours les colonnes de DEFAUT
   let h = "";
   for(const t of typesDe(typePerso())){
     const champs = t==="PM" ? ENTITE_PM : ENTITE_PP;
@@ -457,9 +456,6 @@ function exporterPerso(){
   const actions = cochees("ACT");
   if(!typesDe(m).some(t=>fiches[t].size)){ setEtat("Cochez au moins une fiche.", "err"); return; }
   if(!typesDe(m).some(t=>champs[t].length) && !actions.length){ setEtat("Cochez au moins une colonne.", "err"); return; }
-  // on mémorise le choix des colonnes pour la prochaine fois
-  const memo = memoLire() || {};
-  typesDe(m).forEach(t=>{ memo[t] = champs[t]; }); memo.ACT = actions; memoEcrire(memo);
   exporter(m, {champs, actions, fiches, suffixe:"perso"});
 }
 el("btnPerso").onclick = ()=> el("panneau").classList.contains("ouvert") ? el("panneau").classList.remove("ouvert") : ouvrirPanneau();
