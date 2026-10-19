@@ -276,18 +276,51 @@ function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsA
 }
 // Export personnalisé : bordures, texte renvoyé à la ligne, aligné en haut, lignes à la bonne hauteur, en-tête en gras
 const TRAIT = { style:"thin", color:{ rgb:"808080" } };
+const LARGEUR_PAGE = 230;   // largeur totale visée, en caractères (A3 paysage : l impression réduit à environ 85 %)
+const MAX_FICHE = 17;       // largeur maximale d'une colonne de la fiche (au-delà, le texte passe à la ligne)
+const MIN_ACTION = 50;      // largeur minimale des colonnes Contrôle(s) / Entrave(s)
 function mettreEnForme(ws, rows){
-  // largeurs : colonnes de la fiche limitées à 22 caractères (le texte passe à la ligne), actions à 55
-  const cols = ws["!cols"] = rows[0].map((titre, j)=>
-    (titre==="Contrôle(s)" || titre==="Entrave(s)") ? { wch: 55 } : { wch: Math.min(ws["!cols"][j].wch, 22) });
-  rows.forEach((r, i)=> r.forEach((v, j)=>{
-    const adr = XLSX.utils.encode_cell({r:i, c:j});
-    if(!ws[adr]) ws[adr] = { t:"s", v:"" };            // cellule vide : on la crée pour lui dessiner ses bordures
-    ws[adr].s = { alignment:{ wrapText:true, vertical:"top" },
-                  border:{ top:TRAIT, bottom:TRAIT, left:TRAIT, right:TRAIT } };
-    if(i===0){ ws[adr].s.font = { bold:true }; ws[adr].s.fill = { fgColor:{ rgb:"E1F2F1" } }; }
-  }));
-  // pas de hauteur de ligne imposée : Excel et LibreOffice ajustent eux-mêmes chaque ligne à son contenu
+  const estAction = titre => titre==="Contrôle(s)" || titre==="Entrave(s)";
+  const longueur = v => Math.max(0, ...String(v==null?"":v).split("\n").map(l=>l.length));
+  // colonnes de la fiche : assez large pour le mot le plus long du titre (pour ne pas couper un mot),
+  // et pour le contenu, dans la limite de MAX_FICHE
+  const cols = rows[0].map((titre, j)=>{
+    if(estAction(titre)) return null;
+    const motTitre = Math.max(...String(titre).split(/\s+/).map(m=>m.length));
+    const contenu = Math.max(0, ...rows.slice(1).map(r=>longueur(r[j])));
+    return { wch: Math.max(6, motTitre + 3, Math.min(contenu + 1, MAX_FICHE)) };
+  });
+  // colonnes d'actions : elles se partagent la place qui reste sur la largeur de la page
+  const nbAct = rows[0].filter(estAction).length;
+  const reste = LARGEUR_PAGE - cols.reduce((t, c)=> t + (c ? c.wch : 0), 0);
+  rows[0].forEach((titre, j)=>{ if(estAction(titre)) cols[j] = { wch: Math.max(MIN_ACTION, Math.floor(reste / nbAct)) }; });
+  ws["!cols"] = cols;
+
+  const hauteurs = [];
+  rows.forEach((r, i)=>{
+    let nbLignes = 1;
+    r.forEach((v, j)=>{
+      const adr = XLSX.utils.encode_cell({r:i, c:j});
+      if(!ws[adr]) ws[adr] = { t:"s", v:"" };            // cellule vide : on la crée pour lui dessiner ses bordures
+      ws[adr].s = { alignment:{ wrapText:true, vertical:"top" },
+                    border:{ top:TRAIT, bottom:TRAIT, left:TRAIT, right:TRAIT } };
+      if(i===0){ ws[adr].s.font = { bold:true }; ws[adr].s.fill = { fgColor:{ rgb:"E1F2F1" } }; }
+      // estimation du nombre de lignes affichées, volontairement large (Excel écrit plus large que LibreOffice) :
+      // on compte 1 caractère par unité de largeur, et on coupe aux espaces comme le fait le tableur
+      let n = 0;
+      for(const ligne of String(v==null?"":v).split("\n")){
+        const parLigne = Math.max(1, Math.floor(cols[j].wch * 1.0));
+        let courant = 0; n++;
+        for(const mot of ligne.split(" ")){
+          if(courant && courant + 1 + mot.length > parLigne){ n++; courant = mot.length; }
+          else courant += (courant ? 1 : 0) + mot.length;
+        }
+      }
+      if(n > nbLignes) nbLignes = n;
+    });
+    hauteurs.push({ hpt: Math.min(409, nbLignes * 15 + 3) });   // 15 points par ligne ; 409 = maximum d'Excel
+  });
+  ws["!rows"] = hauteurs;
   ws["!margins"] = { left:0.4, right:0.4, top:0.5, bottom:0.5, header:0.3, footer:0.3 };   // en pouces
 }
 // Mise en page pour l'impression (la bibliothèque ne sait pas l'écrire, on l'ajoute dans le fichier) :
