@@ -47,7 +47,7 @@
 </head>
 <body>
   <h1>Export brut (pour recherche par mot-clé)</h1>
-  <p class="info">Une ligne par entité, avec ses actions (contrôles et entraves) en colonnes, triées par date. Jusqu'à 8 actions détaillées ; au-delà, regroupées dans « Actions supplémentaires ». N'exporte que les entités accessibles (votre département).</p>
+  <p class="info">Une ligne par objectif, avec ses actions (contrôles et entraves engagées) en colonnes, triées par date. Jusqu'à 8 actions détaillées ; au-delà, regroupées dans « Actions supplémentaires ». N'exporte que les objectifs de votre département.</p>
   <div class="periode">
     <b>Période à exporter</b>
     <select id="mode">
@@ -96,33 +96,33 @@
 const MAX = 8;   // nombre d'actions détaillées en colonnes
 
 const ENTITE_PM = [
-  {id:"Etat_du_dossier",label:"État du dossier",type:"text"},
+  {id:"Etat_du_dossier",label:"État du suivi",type:"text"},
+  {id:"Domaine_reel_2",label:"Domaine(s) réel(s)",type:"list"},
   {id:"Affiliation",label:"Affiliation",type:"text"},
-  {id:"Mouvance",label:"Mouvance",type:"text"},
-  {id:"Pseudonyme",label:"Pseudonyme",type:"text"},
-  {id:"Objectif",label:"Objectif",type:"text"},
-  {id:"Departement",label:"Département",type:"text"},
-  {id:"Ville",label:"Ville",type:"text"},
-  {id:"Autres_adresses",label:"Autres adresses",type:"text"},
-  {id:"Statut_juridique",label:"Statut juridique",type:"text"},
-  {id:"Date_creation",label:"Date de création",type:"date"},
-  {id:"Numero_RNA",label:"Numéro RNA",type:"text"},
-  {id:"Numero_SIRET",label:"Numéro SIRET",type:"text"},
-  {id:"Activite_presentiel_ligne",label:"Activité présentiel/en ligne",type:"text"},
-  {id:"Domaine_declare_1",label:"Domaines déclarés",type:"list"},
-  {id:"Domaine_reel_2",label:"Domaines réels",type:"list"},
   {id:"Date_signalement",label:"Date du signalement",type:"date"},
+  {id:"Mouvance",label:"Mouvance",type:"text"},
   {id:"Service_signalant",label:"Service signalant",type:"text"},
+  {id:"Pseudonyme",label:"Pseudonyme",type:"text"},
   {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
+  {id:"Objectif",label:"OIN/OIL",type:"text"},
   {id:"Commentaire_signalement",label:"Commentaire",type:"text"},
+  {id:"Departement",label:"Département",type:"text"},
   {id:"Dirigeants",label:"Dirigeants",type:"text"},
-  {id:"Personnels_benevoles",label:"Personnels bénévoles",type:"text"},
-  {id:"_liees_Physique",label:"Personnes physiques liées",type:"liees",ref:"PM",groupe:"Physique"},
-  {id:"_liees_Morale",label:"Personnes morales liées",type:"liees",ref:"PM",groupe:"Morale"},
+  {id:"Ville",label:"Ville",type:"text"},
+  {id:"Personnels_benevoles",label:"Personnel(s) bénévole(s)",type:"text"},
+  {id:"Autres_adresses",label:"Autres adresses",type:"text"},
+  {id:"_liees_Physique",label:"Personne(s) physique(s) liée(s)",type:"liees",ref:"PM",groupe:"Physique"},
+  {id:"Statut_juridique",label:"Statut juridique",type:"text"},
+  {id:"_liees_Morale",label:"Personne(s) morale(s) liée(s)",type:"liees",ref:"PM",groupe:"Morale"},
+  {id:"Date_creation",label:"Date de création",type:"date"},
   {id:"Points_vigilance",label:"Points de vigilance",type:"text"},
+  {id:"Numero_RNA",label:"Numéro RNA",type:"text"},
   {id:"Projet_controle",label:"Projet de contrôle",type:"text"},
+  {id:"Numero_SIRET",label:"Numéro SIRET",type:"text"},
   {id:"Dates_passage_CLIR",label:"Dates de passage en CLIR",type:"date"},
-  {id:"Champs_libre",label:"Champs libre",type:"text"},
+  {id:"Activite_presentiel_ligne",label:"Activité présentiel/en ligne",type:"text"},
+  {id:"Champs_libre",label:"Champ libre",type:"text"},
+  {id:"Domaine_declare_1",label:"Domaine(s) déclaré(s)",type:"list"},
 ];
 
 const ENTITE_PP = [
