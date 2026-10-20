@@ -362,17 +362,6 @@ function rendre(){
       natV.includes("Autre (à reclasser)") ? {sous:"« Autre (à reclasser) » : nationalité saisie hors des quatre catégories"} : {}),
     camembert("Sexe des personnes", SEXE, compter(PP, r=>r.sexe, SEXE)));
 
-  h += `<h3>1.2 Degré de priorisation des objectifs suivis, selon leur intérêt (national ou local)</h3>`;
-  const OBJ = ["National","Local"];
-  if(tous.some(r=>norm(r.Objectif)==="international")) OBJ.push("International");
-  const OBJL = OBJ.map(o=>"Objectif d'intérêt "+o.toLowerCase());
-  h += grille(
-    carte("Objectifs d'intérêt national / local",
-      `<div class="total"><span>Nombre total d'objectifs :</span><span class="num">${tous.length}</span></div>` +
-      camembert("Objectifs d'intérêt national / local", OBJL, compter(tous, r=>r.Objectif, OBJ), {brut:true})),
-    `<div style="display:flex;flex-direction:column;gap:14px">` + pile("Personnes morales", ["Nombre total Personnes morales :", PM.length], OBJL, compter(PM, r=>r.Objectif, OBJ)) +
-    pile("Personnes physiques", ["Nombre total Personnes physiques :", PP.length], OBJL, compter(PP, r=>r.Objectif, OBJ)) + `</div>`);
-
   h += `<h3>1.6 Répartition des objectifs suivis par domaine d'activité réel</h3>`;
   const blocDomaines = (col) => {
     const DOM = ch("PM."+col).length ? ch("PM."+col) : (choix["PM.Domaine_reel_2"]||[]);
