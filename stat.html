@@ -381,22 +381,17 @@ function rendre(){
   const parType = (rows, types) => compter(rows, c=>c._type, types);
   const catNom = (motNature, debut) => catsDe(motNature).find(c=>norm(c).startsWith(norm(debut))) || debut;
 
-  h += `<h3>2.1 Répartition des actions de contrôle, selon la nature des contrôles</h3>`;
+  h += `<h3>2.1 Répartition des actions de contrôle</h3>`;
   h += grille(camembert("Répartition des actions de contrôle, selon la nature des contrôles", NATURES,
                 compter(ctrl, c=>c.Nature_du_controle_entrave, NATURES), {pourcent:true}));
-
-  h += `<h4>2.1.1 Répartition des contrôles sur pièces, selon leur nature</h4>`;
   const CP = catsDe("sur pièce");
-  h += grille(camembert("Répartition des contrôles sur pièces, selon leur nature", CP, parCat(ctrl, CP)));
-
-  h += `<h4>2.1.2 Répartition des contrôles sur place, selon leur nature</h4>`;
+  h += grille(camembert("Répartition des contrôles sur pièces, selon leur catégorie", CP, parCat(ctrl, CP)));
   const CPL = catsDe("sur place"), cAct = catNom("sur place", "Contrôle sur place de l");
   h += grille(
-    camembert("Répartition des contrôles sur place, selon leur nature", CPL, parCat(ctrl, CPL)));
-
-  h += `<h3>2.2 Répartition des actions d'entrave, selon la nature des entraves</h3>`;
+    camembert("Répartition des contrôles sur place, selon leur catégorie", CPL, parCat(ctrl, CPL)));
+  h += `<h3>2.2 Répartition des actions d'entrave</h3>`;
   const CE = catsDe("entrave");
-  h += grille(camembert("Actions d'entrave", CE, parCat(entr, CE)));
+  h += grille(camembert("Répartition des actions d'entrave celon leur catégories", CE, parCat(entr, CE)));
   const cFerm = catNom("entrave","Fermeture"), cCess = catNom("entrave","Autres cessations"),
         cSais = catNom("entrave","Saisine"), cRef = catNom("entrave","Refus"), cCont = catNom("entrave","Contrainte");
   
