@@ -384,9 +384,11 @@ function rendre(){
   h += `<h3>2.1 Répartition des actions de contrôle</h3>`;
   const CP = catsDe("sur pièce");
   const CPL = catsDe("sur place"), cAct = catNom("sur place", "Contrôle sur place de l");
-  h += grille(camembert("Répartition des actions de contrôle, selon la nature des contrôles", NATURES, compter(ctrl, c=>c.Nature_du_controle_entrave, NATURES), {pourcent:true}),
-               `<div style="display:flex;flex-direction:line;gap:14px">` + camembert("Répartition des contrôles sur pièces, selon leur catégorie", CP, parCat(ctrl, CP)) +
-              camembert("Répartition des contrôles sur place, selon leur catégorie", CPL, parCat(ctrl, CPL)) + `</div>`);
+  h += grille(camembert("Répartition des actions de contrôle, selon la nature des contrôles", NATURES, compter(ctrl, c=>c.Nature_du_controle_entrave, NATURES), {pourcent:true}));
+  h += grille(
+    camembert("Répartition des contrôles sur pièces, selon leur catégorie", CP, parCat(ctrl, CP)),
+    camembert("Répartition des contrôles sur place, selon leur catégorie", CPL, parCat(ctrl, CPL)));
+  
   h += `<h3>2.2 Répartition des actions d'entrave</h3>`;
   const CE = catsDe("entrave");
   h += grille(camembert("Répartition des actions d'entrave celon leur catégories", CE, parCat(entr, CE)));
