@@ -362,6 +362,21 @@ function rendre(){
       natV.includes("Autre (à reclasser)") ? {sous:"« Autre (à reclasser) » : nationalité saisie hors des quatre catégories"} : {}),
     camembert("Sexe des personnes", SEXE, compter(PP, r=>r.sexe, SEXE)));
 
+  h += `<h3>1.7 Répartition des objectifs suivis par domaine d'activité réel</h3>`;
+  const blocDomaines = (col) => {
+    const DOM = ch("PM."+col).length ? ch("PM."+col) : (choix["PM.Domaine_reel_2"]||[]);
+    const GRP = groupesDomaines(DOM);
+    const synth = GRP.map(g=>PM.filter(r=>liste(r[col]).some(v=>groupeDomaine(v)===g)).length);
+    const detail = (g, titre) => { const sous = DOM.filter(d=>groupeDomaine(d)===g && d!==g);
+      return camembert(titre, sous, compter(PM, r=>r[col], sous)); };
+    const g = n => GRP.find(x=>norm(x).startsWith(norm(n))) || n;
+    return grille(
+      camembert("Répartition des objectifs des personnes morales par domaine d'activité (synthèse)", GRP, synth),
+  h += `<h4>1.7.2 Répartition des objectifs des personnes morales par domaine d'activité(s) réel</h4>` + blocDomaines("Domaine_reel_2");
+  const ACTPP = ch("PP.Activite_s_justfiant_le_suivi");
+  h += `<h4>1.7.3 Répartition des objectifs des personnes physiques par domaine d'activité réel</h4>`
+     + grille(barresH("Nombre de personnes physiques", ACTPP, compter(PP, r=>r.Activite_s_justfiant_le_suivi, ACTPP)));
+
   
   el("rapport").innerHTML = h;
   rendreRepliable(el("rapport"), "h2.sec");   // parties 1 à 4
