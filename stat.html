@@ -394,6 +394,8 @@ function rendre(){
   h += grille(camembert("Répartition des actions d'entrave celon leur catégories", CE, parCat(entr, CE)));
   const cFerm = catNom("entrave","Fermeture"), cCess = catNom("entrave","Autres cessations"),
         cSais = catNom("entrave","Saisine"), cRef = catNom("entrave","Refus"), cCont = catNom("entrave","Contrainte");
+  h += `<h4>2.2.1 Parmi les saisines judiciaires, détail des articles 40 / transmission de PV au procureur de la République</h4>`
+    + grille(barresH("Saisines du procureur de la République", SAIS, parType(entr, SAIS), {couleur:PALETTE[6]}));
   
   el("rapport").innerHTML = h;
   rendreRepliable(el("rapport"), "h2.sec");   // parties 1 à 4
