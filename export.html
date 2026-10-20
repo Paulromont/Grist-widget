@@ -523,6 +523,11 @@ function caseHtml(groupe, id, label, coche){
 
 // Colonnes cochées à l'ouverture du panneau (toujours les mêmes)
 const DEFAUT = {
+  PM:  ["Dates_passage_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre","Autres_adresses","Date_creation","Numero_RNA","Numero_SIRET","Activite_presentiel_ligne","Date_signalement","Service_signalant","Contenu_signalement","Commentaire_signalement","Dirigeants","Personnels_benevoles","Personnes_liees","Personnes morales liées"],
+  PP:  ["Dates_de_passage_en_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre","Nationalite","Departement","Ville","Date_signalement","Service_signalant","Contenu_signalement","Personnes_liees","Personnes morales liées",],
+  ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine","Duree_jours","Motif_ERP","Montant_notifie","Montant_recouvre","Montant_applicable","Commentaires"]
+};
+  const ALEGE = {
   PM:  ["Dates_passage_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre"],
   PP:  ["Dates_de_passage_en_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre"],
   ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine"]
@@ -610,7 +615,7 @@ el("btnTout").onclick = ()=> exporter("TOUT");
 // Export allégé imprimable A3 : PM et PP (un onglet chacun), toutes les fiches de la période,
 // avec exactement les colonnes de DEFAUT, dans la mise en forme de l'export personnalisé
 el("btnA3").onclick = ()=> exporter("TOUT", {
-  champs: { PM: DEFAUT.PM, PP: DEFAUT.PP }, actions: DEFAUT.ACT, fiches: null, suffixe: "allege_A3" });
+  champs: { PM: ALEGE.PM, PP: ALEGE.PP }, actions: ALEGE.ACT, fiches: null, suffixe: "allege_A3" });
 el("mode").onchange = majPeriode;
 el("annee").onchange = majPeriode;
 el("mois").onchange = majPeriode;
