@@ -62,6 +62,7 @@
     <button id="btnPP">Exporter les PP</button>
     <button class="sec" id="btnTout">Exporter tout (PM + PP)</button>
     <button class="perso" id="btnPerso">Export personnalisé…</button>
+    <button class="perso" id="btnA3">Export allégé imprimable A3</button>
   </div>
   <div class="etat" id="etat"></div>
 
@@ -184,7 +185,7 @@ const LIEES_CHAMPS = {
 
 const el = id => document.getElementById(id);
 function setEtat(msg, cls){ el("etat").textContent = msg||""; el("etat").className = "etat" + (cls?(" "+cls):""); }
-function busy(on){ ["btnPM","btnPP","btnTout","btnPerso","btnExportPerso"].forEach(b=>el(b).disabled=on); }
+function busy(on){ ["btnPM","btnPP","btnTout","btnPerso","btnExportPerso","btnA3"].forEach(b=>el(b).disabled=on); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 function toRows(t){ return t.id.map((id,i)=>{ const o={id}; for(const c in t){ if(c!=="id") o[c]=t[c][i]; } return o; }); }
@@ -481,7 +482,7 @@ async function exporter(mode, opts){
       for(const id in parEntite) actions[id] = parEntite[id].filter(a=>dansPeriode(dateAct(a)));
       parEntite = actions;
       if(opts){
-        entites = entites.filter(e=>opts.fiches[type].has(e.id));
+        if(opts.fiches) entites = entites.filter(e=>opts.fiches[type].has(e.id));   // pas de liste = toutes les fiches
         champs = champs.filter(c=>opts.champs[type].includes(c.id));
         if(!entites.length) return;
       }
@@ -606,6 +607,10 @@ grist.ready({ requiredAccess: "full" });
 el("btnPM").onclick   = ()=> exporter("PM");
 el("btnPP").onclick   = ()=> exporter("PP");
 el("btnTout").onclick = ()=> exporter("TOUT");
+// Export allégé imprimable A3 : PM et PP (un onglet chacun), toutes les fiches de la période,
+// avec exactement les colonnes de DEFAUT, dans la mise en forme de l'export personnalisé
+el("btnA3").onclick = ()=> exporter("TOUT", {
+  champs: { PM: DEFAUT.PM, PP: DEFAUT.PP }, actions: DEFAUT.ACT, fiches: null, suffixe: "allege_A3" });
 el("mode").onchange = majPeriode;
 el("annee").onchange = majPeriode;
 el("mois").onchange = majPeriode;
