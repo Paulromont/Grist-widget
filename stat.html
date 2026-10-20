@@ -372,9 +372,10 @@ function rendre(){
     const g = n => GRP.find(x=>norm(x).startsWith(norm(n))) || n;
     return grille(
       camembert("Répartition des objectifs des personnes morales par domaine d'activité (synthèse)", GRP, synth),
-  h += `<h4>1.7.2 Répartition des objectifs des personnes morales par domaine d'activité(s) réel</h4>` + blocDomaines("Domaine_reel_2");
+      };
+  h += `<h4>1.7.1 Répartition des objectifs des personnes morales par domaine d'activité(s) réel</h4>` + blocDomaines("Domaine_reel_2");
   const ACTPP = ch("PP.Activite_s_justfiant_le_suivi");
-  h += `<h4>1.7.3 Répartition des objectifs des personnes physiques par domaine d'activité réel</h4>`
+  h += `<h4>1.7.2 Répartition des objectifs des personnes physiques par domaine d'activité réel</h4>`
      + grille(barresH("Nombre de personnes physiques", ACTPP, compter(PP, r=>r.Activite_s_justfiant_le_suivi, ACTPP)));
 
   
