@@ -370,7 +370,8 @@ function rendre(){
     const detail = (g, titre) => { const sous = DOM.filter(d=>groupeDomaine(d)===g && d!==g);
       return camembert(titre, sous, compter(PM, r=>r[col], sous)); };
     const g = n => GRP.find(x=>norm(x).startsWith(norm(n))) || n;
-    camembert("Répartition des objectifs des personnes morales par domaine d'activité (synthèse)", GRP, synth),
+    return grille(
+      camembert("Répartition des objectifs des personnes morales par domaine d'activité (synthèse)", GRP, synth),)
       };
   h += `<h4>1.7.1 Répartition des objectifs des personnes morales par domaine d'activité(s) réel</h4>` + blocDomaines("Domaine_reel_2");
   const ACTPP = ch("PP.Activite_s_justfiant_le_suivi");
