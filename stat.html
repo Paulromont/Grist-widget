@@ -370,6 +370,36 @@ function rendre(){
   h += grille(
     camembert("Personnes morales par domaine d'activité réel", GRP_REEL, nbParDomaine),
     barresH("Personnes physiques par activité justifiant le suivi", ACTPP, compter(PP, r=>r.Activite_s_justfiant_le_suivi, ACTPP)));
+
+  /* ===== 2 ===== */
+  h += `<h2 class="sec">2. Bilan des actions engagées à l'encontre des objectifs suivis</h2>`;
+  h += `<p class="perimetre">Parties 2 à 4 : seules les actions ayant une date de déclenchement (ou de notification pour une entrave)${periode ? " comprise dans la période" : ""} sont comptées.</p>`;
+  const NATURES = ch("Controles.Nature_du_controle_entrave").filter(n=>!norm(n).includes("entrave"));
+  const catsDe = motNature => B.CAT.filter(c=>norm(c.Nature).includes(norm(motNature))).map(c=>c.Cathegorie);
+  const typesDe = cat => B.TYP.filter(t=>norm(t.Categorie)===norm(cat)).map(t=>t.Libelle);
+  const parCat = (rows, cats) => compter(rows, c=>c.Categorie, cats);
+  const parType = (rows, types) => compter(rows, c=>c._type, types);
+  const catNom = (motNature, debut) => catsDe(motNature).find(c=>norm(c).startsWith(norm(debut))) || debut;
+
+  h += `<h3>2.1 Répartition des actions de contrôle, selon la nature des contrôles</h3>`;
+  h += grille(camembert("Répartition des actions de contrôle, selon la nature des contrôles", NATURES,
+                compter(ctrl, c=>c.Nature_du_controle_entrave, NATURES), {pourcent:true}));
+
+  h += `<h4>2.1.1 Répartition des contrôles sur pièces, selon leur nature</h4>`;
+  const CP = catsDe("sur pièce");
+  h += grille(camembert("Répartition des contrôles sur pièces, selon leur nature", CP, parCat(ctrl, CP)));
+
+  h += `<h4>2.1.2 Répartition des contrôles sur place, selon leur nature</h4>`;
+  const CPL = catsDe("sur place"), cAct = catNom("sur place", "Contrôle sur place de l");
+  h += grille(
+    camembert("Répartition des contrôles sur place, selon leur nature", CPL, parCat(ctrl, CPL)),
+    barresH("Détails Contrôles de l'activité", typesDe(cAct), parType(ctrl, typesDe(cAct))));
+
+  h += `<h3>2.2 Répartition des actions d'entrave, selon la nature des entraves</h3>`;
+  const CE = catsDe("entrave");
+  h += grille(camembert("Actions d'entrave", CE, parCat(entr, CE)));
+  const cFerm = catNom("entrave","Fermeture"), cCess = catNom("entrave","Autres cessations"),
+        cSais = catNom("entrave","Saisine"), cRef = catNom("entrave","Refus"), cCont = catNom("entrave","Contrainte");
   
   el("rapport").innerHTML = h;
   rendreRepliable(el("rapport"), "h2.sec");   // parties 1 à 4
