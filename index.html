@@ -20,6 +20,12 @@
   .grille{display:grid; grid-template-columns:1fr 1fr; gap:12px 17px;}
   .champ{display:flex; flex-direction:column; gap:4px;}
   .champ.large{grid-column:1 / -1;}
+  /* gommette « à compléter » sur les champs vides */
+  .champ.manque > label::after{content:"à compléter"; margin-left:6px; padding:1px 7px; border-radius:9px;
+     background:#FCEBD9; color:#9A4A00; font-size:10.5px; font-weight:600; white-space:nowrap;}
+  .champ.manque :is(input:not([type=checkbox]), select, textarea, .multi-tete){border-color:#E8A15C;}
+  /* petits écrans : les listes à choix multiples (domaines d'activité…) passent l'une sous l'autre */
+  @media (max-width: 800px){ .champ.liste{grid-column:1 / -1;} }
   label{font-size:12px; color:var(--muet);}
   input,select,textarea{font:inherit; padding:6px 8px; border:1px solid var(--bord);
      border-radius:6px; background:#fff; color:var(--txt); width:100%;}
@@ -177,6 +183,19 @@ let controlesActuels = [];
 let modifie = false;
 
 const el = id => document.getElementById(id);
+// Gommette « à compléter » : un champ est vide s'il n'a ni texte, ni date, ni choix
+function champVide(ch){
+  const cases = ch.querySelectorAll("input[type=checkbox]");
+  if(cases.length === 1) return false;     // case Oui / Non : décochée veut dire « Non », pas « vide »
+  if(cases.length > 1) return !ch.querySelector("input[type=checkbox]:checked");   // menu à cases
+  const c = ch.querySelector("select, textarea, input");
+  if(!c) return false;
+  if(c.multiple) return c.selectedOptions.length === 0;    // liste à choix multiples
+  return String(c.value || "").trim() === "";
+}
+function marquerVides(){
+  el("contenu").querySelectorAll(".champ").forEach(ch=> ch.classList.toggle("manque", champVide(ch)));
+}
 const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function ouvrirFermer(tete){
   const boite = tete.parentElement;
@@ -310,7 +329,7 @@ function rendre(){
     html += sec.titre ? `<h2 class="section">${esc(sec.titre)}</h2><div class="grille">` : `<div class="grille bandeau">`;
     for(const c of sec.champs){
       if(c.bloc==="liees"){ html += `</div><div id="zoneLiees"></div><div class="grille">`; continue; }
-      html += `<div class="champ ${c.large?"large":""}"><label>${c.labelHTML || esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
+      html += `<div class="champ ${c.large?"large":""} ${c.type==="choicelist"?"liste":""}"><label>${c.labelHTML || esc(c.label)}</label>${champHTML(c, recordActuel[c.id], "pm_")}</div>`;
     }
     html += `</div>`;
   }
@@ -364,13 +383,14 @@ function rendreControles(depuisChangement){
       if(c.cats && !c.cats.includes(cat)) continue;
       if(c.id === "Type_controle" && catEstLibre(cat)) continue;
       if(c.id === "Type_libre" && !catEstLibre(cat)) continue;
-      h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
+      h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""} ${c.type==="choicelist"?"liste":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
     }
     h += `</div></div>`;
     if(estEntrave) htmlE += h; else htmlC += h;
   });
   if(zC) zC.innerHTML = htmlC || `<p class="vide">Aucun contr\u00f4le pour cet objectif.</p>`;
   if(zE) zE.innerHTML = htmlE || `<p class="vide">Aucune entrave pour cet objectif.</p>`;
+  marquerVides();
   document.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
     capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
@@ -593,6 +613,10 @@ function lieesImpression(){
   }
   return h;
 }
+// gommette mise à jour pendant la saisie
+["input","change"].forEach(t=> el("contenu").addEventListener(t, e=>{
+  const ch = e.target.closest(".champ"); if(ch) ch.classList.toggle("manque", champVide(ch));
+}));
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
 el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
