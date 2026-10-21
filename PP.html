@@ -24,8 +24,8 @@
   .champ.manque > label::after{content:"à compléter"; margin-left:6px; padding:1px 7px; border-radius:9px;
      background:#FCEBD9; color:#9A4A00; font-size:10.5px; font-weight:600; white-space:nowrap;}
   .champ.manque :is(input:not([type=checkbox]), select, textarea, .multi-tete){border-color:#E8A15C;}
-  /* petits écrans : les listes à choix multiples (domaines d'activité…) passent l'une sous l'autre */
-  @media (max-width: 800px){ .champ.liste{grid-column:1 / -1;} }
+  /* listes à choix multiples (domaines d'activité…) : l'une sous l'autre quand leurs choix ne tiennent pas en largeur */
+  .grille.listes-empilees > .champ.liste{grid-column:1 / -1;}
   label{font-size:12px; color:var(--muet);}
   input,select,textarea{font:inherit; padding:6px 8px; border:1px solid var(--bord);
      border-radius:6px; background:#fff; color:var(--txt); width:100%;}
@@ -185,6 +185,23 @@ function champVide(ch){
 function marquerVides(){
   el("contenu").querySelectorAll(".champ").forEach(ch=> ch.classList.toggle("manque", champVide(ch)));
 }
+// Listes à choix multiples : si le choix le plus long ne tient pas dans une demi-largeur,
+// les listes de ce bloc passent l'une sous l'autre (toute la largeur). Recalculé quand le widget change de taille.
+const pinceau = document.createElement("canvas").getContext("2d");
+function ajusterListes(){
+  el("contenu").querySelectorAll(".grille").forEach(g=>{
+    const listes = [...g.querySelectorAll(":scope > .champ.liste select")];
+    if(!listes.length) return;
+    const st = getComputedStyle(g);
+    const demi = (g.clientWidth - parseFloat(st.columnGap || 0)) / 2 - 30;   // 30 px : marges intérieures + barre de défilement
+    const tropLong = listes.some(s=>{
+      pinceau.font = getComputedStyle(s).font;
+      return [...s.options].some(o=> pinceau.measureText(o.text).width > demi);
+    });
+    g.classList.toggle("listes-empilees", tropLong);
+  });
+}
+window.addEventListener("resize", ajusterListes);
 const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function ouvrirFermer(tete){
   const boite = tete.parentElement;
@@ -379,7 +396,7 @@ function rendreControles(depuisChangement){
   });
   if(zC) zC.innerHTML = htmlC || `<p class="vide">Aucun contr\u00f4le pour cet objectif.</p>`;
   if(zE) zE.innerHTML = htmlE || `<p class="vide">Aucune entrave pour cet objectif.</p>`;
-  marquerVides();
+  marquerVides(); ajusterListes();
   document.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
     capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
