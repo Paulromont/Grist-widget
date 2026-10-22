@@ -100,6 +100,7 @@ const SECTIONS = [
     {id:"Objectif",     label:"Objectif d'intérêt local / national", type:"choice", large:true},
     {id:"Ville",        label:"Ville", type:"text"},
     {id:"Activite_s_justfiant_le_suivi", label:"Activité(s) justifiant le suivi", type:"choicelist"},
+    {id:"commentaire_identite", label:"Commentaire", type:"textarea", large:true},
   ]},
   { titre:"Signalement d'origine", champs:[
     {id:"Date_signalement",    label:"Date du signalement d'origine", type:"date"},
@@ -197,7 +198,7 @@ function ficheDejaEnregistree(){
   const champs = SECTIONS.flatMap(sec=> sec.champs).filter(c=> c.id && !CHAMPS_AUTO.includes(c.id));
   return champs.some(c=> !valeurVide(recordActuel[c.id])) || controlesActuels.some(x=> x.id);
 }
-const SANS_PASTILLE = ["Commentaire_signalement", "commentaires", "Commentaires", "Controles_origine", "Champs_libre"];
+const SANS_PASTILLE = ["Commentaire_signalement", "commentaires", "Commentaires", "Controles_origine", "Champs_libre", "commentaire_identite"];
 function marquerVides(){
   const actif = ficheDejaEnregistree();
   el("contenu").querySelectorAll(".champ").forEach(ch=> ch.classList.toggle("manque", actif && champVide(ch)));
