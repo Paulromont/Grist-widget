@@ -525,6 +525,8 @@ function imprimerFiche(){
     }
     corps += `<h3>${(nat===CONTROLES.natureEntrave?"Entrave":"Contr\u00f4le")} ${idx+1}</h3><table class="ch">${lignes}</table>`;
   });
+  // département de la fiche, sous le titre (rien s'il n'est pas renseigné)
+  const dep = recordActuel.Departement ? `<p class="dep">Département : ${esc(recordActuel.Departement)}</p>` : "";
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titre)}</title>
     <style>
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -538,8 +540,9 @@ function imprimerFiche(){
       table.lie{width:100%; border-collapse:collapse; margin-bottom:8px;}
       table.lie th{background:#F3E8F3; color:#6B2D6B; text-align:left; font-weight:600; border:0.5px solid #ccc; padding:4px 6px;}
       table.lie td{border:0.5px solid #ccc; padding:4px 6px;}
+      p.dep{font-size:13px; color:#555; margin:-6px 0 10px;}
       @media print{ body{margin:0;} }
-    </style></head><body><h1>${esc(titre)}</h1>${corps}</body></html>`;
+    </style></head><body><h1>${esc(titre)}</h1>${dep}${corps}</body></html>`;
   const w = window.open("", "_blank");
   if(!w){ alert("Autorise les fen\u00eatres pop-up pour pouvoir imprimer."); return; }
   w.document.write(html); w.document.close(); w.focus();
