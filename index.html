@@ -185,6 +185,8 @@ let modifie = false;
 const el = id => document.getElementById(id);
 // Gommette « à compléter » : un champ est vide s'il n'a ni texte, ni date, ni choix
 function champVide(ch){
+  const saisie = ch.querySelector("input, select, textarea");
+  if(saisie && SANS_PASTILLE.some(id=> saisie.id.endsWith("_" + id))) return false;
   const cases = ch.querySelectorAll("input[type=checkbox]");
   if(cases.length === 1) return false;     // case Oui / Non : décochée veut dire « Non », pas « vide »
   if(cases.length > 1) return !ch.querySelector("input[type=checkbox]:checked");   // menu à cases
@@ -206,6 +208,9 @@ function ficheDejaEnregistree(){
   const champs = SECTIONS.flatMap(sec=> sec.champs).filter(c=> c.id && !CHAMPS_AUTO.includes(c.id));
   return champs.some(c=> !valeurVide(recordActuel[c.id])) || controlesActuels.some(x=> x.id);
 }
+
+const SANS_PASTILLE = ["Commentaire_signalement", "commentaires", "Commentaires"];
+  
 function marquerVides(){
   const actif = ficheDejaEnregistree();
   el("contenu").querySelectorAll(".champ").forEach(ch=> ch.classList.toggle("manque", actif && champVide(ch)));
