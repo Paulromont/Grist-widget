@@ -152,8 +152,8 @@ const CONTROLES = {
   natureCol:"Nature_du_controle_entrave", natureEntrave:"Actions d\u2019entrave",
   champs:[
     {id:"Nature_du_controle_entrave", label:"Nature du contrôle / entrave", type:"choice"},
-    {id:"Categorie",           label:"Catégorie de contrôle", type:"refcat"},
-    {id:"Type_controle",       label:"Type de contrôle", type:"reftype", large:true},
+    {id:"Categorie",           label:"Catégorie de contrôle", labelEntrave:"Catégorie d'entrave", type:"refcat"},
+    {id:"Type_controle",       label:"Type de contrôle", labelEntrave:"Type d'entrave", type:"reftype", large:true},
     {id:"Type_libre",          label:"Type (saisie libre)", type:"text", large:true},
     {id:"Date_declenchement",  label:"Date de déclenchement", type:"date", ctrlOnly:true},
     {id:"Date_cloture",        label:"Date de clôture", type:"date", ctrlOnly:true},
@@ -193,8 +193,22 @@ function champVide(ch){
   if(c.multiple) return c.selectedOptions.length === 0;    // liste à choix multiples
   return String(c.value || "").trim() === "";
 }
+// La gommette n'apparaît qu'après le premier enregistrement : une fiche toute neuve
+// (aucun champ encore enregistré dans Grist, aucune action) n'en affiche pas.
+const CHAMPS_AUTO = [];   // champs remplis automatiquement à la création (ex. "Etat_du_dossier") : ils ne comptent pas
+function valeurVide(v){
+  if(v==null || v==="" || v===false) return true;
+  if(Array.isArray(v)) return v.length===0 || (v[0]==="L" && v.length===1);
+  return false;
+}
+function ficheDejaEnregistree(){
+  if(!recordActuel) return false;
+  const champs = SECTIONS.flatMap(sec=> sec.champs).filter(c=> c.id && !CHAMPS_AUTO.includes(c.id));
+  return champs.some(c=> !valeurVide(recordActuel[c.id])) || controlesActuels.some(x=> x.id);
+}
 function marquerVides(){
-  el("contenu").querySelectorAll(".champ").forEach(ch=> ch.classList.toggle("manque", champVide(ch)));
+  const actif = ficheDejaEnregistree();
+  el("contenu").querySelectorAll(".champ").forEach(ch=> ch.classList.toggle("manque", actif && champVide(ch)));
 }
 // Listes à choix multiples : si le choix le plus long ne tient pas dans une demi-largeur,
 // les listes de ce bloc passent l'une sous l'autre (toute la largeur). Recalculé quand le widget change de taille.
@@ -400,7 +414,7 @@ function rendreControles(depuisChangement){
       if(c.cats && !c.cats.includes(cat)) continue;
       if(c.id === "Type_controle" && catEstLibre(cat)) continue;
       if(c.id === "Type_libre" && !catEstLibre(cat)) continue;
-      h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""} ${c.type==="choicelist"?"liste":""}"><label>${esc(c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
+      h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""} ${c.type==="choicelist"?"liste":""}"><label>${esc(estEntrave && c.labelEntrave ? c.labelEntrave : c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
     }
     h += `</div></div>`;
     if(estEntrave) htmlE += h; else htmlC += h;
@@ -518,7 +532,7 @@ function imprimerFiche(){
       if(c.id==="Type_controle" && (!cat || catEstLibre(cat))) continue;
       if(c.id==="Type_libre" && !catEstLibre(cat)) continue;
       const v = valeurAffichee(c, ctrl[c.id]);
-      if(v!=="") lignes += `<tr><td class="lbl">${esc(c.label)}</td><td>${esc(v)}</td></tr>`;
+      if(v!=="") lignes += `<tr><td class="lbl">${esc(estEntraveP && c.labelEntrave ? c.labelEntrave : c.label)}</td><td>${esc(v)}</td></tr>`;
     }
     corps += `<h3>${(nat===CONTROLES.natureEntrave?"Entrave":"Contr\u00f4le")} ${idx+1}</h3><table class="ch">${lignes}</table>`;
   });
@@ -632,7 +646,7 @@ function lieesImpression(){
 }
 // gommette mise à jour pendant la saisie
 ["input","change"].forEach(t=> el("contenu").addEventListener(t, e=>{
-  const ch = e.target.closest(".champ"); if(ch) ch.classList.toggle("manque", champVide(ch));
+  const ch = e.target.closest(".champ"); if(ch) ch.classList.toggle("manque", ficheDejaEnregistree() && champVide(ch));
 }));
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
