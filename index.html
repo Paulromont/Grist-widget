@@ -69,6 +69,9 @@
   table.liees td.act{width:44px; text-align:center;}
   table.liees td.vide{text-align:center; border:1px solid var(--bord);}
   button.petit{padding:4px 12px; margin-top:6px; font-size:13px;}
+  /* champ « lignes » : une zone de saisie par ligne, avec un bouton pour la supprimer */
+  .ligne-libre{display:flex; align-items:center; gap:4px; margin-bottom:4px;}
+  .ligne-libre input{flex:1;}
 </style>
 </head>
 <body>
@@ -119,8 +122,8 @@ const SECTIONS = [
     {id:"Commentaire_signalement",label:"Commentaires", type:"textarea", large:true},
   ]},
   { titre:"Éléments de contexte", champs:[
-    {id:"Dirigeants",          label:"Dirigeant(s)", type:"textarea"},
-    {id:"Personnels_benevoles",label:"Personnel(s) / bénévole(s)", type:"textarea"},
+    {id:"Dirigeants",          label:"Dirigeant(s)", type:"lignes"},
+    {id:"Personnels_benevoles",label:"Personnel(s) / bénévole(s)", type:"lignes"},
     {bloc:"liees"},
     {id:"Points_vigilance",    label:"Point(s) de vigilance", type:"textarea"},
     {id:"Projet_controle",     label:"Projet(s) de contrôle", type:"textarea"},
@@ -131,9 +134,6 @@ const TABLE_ENTITE = "PM";
 
 const LIEES = {
   table:"Personnes_liees", refCol:"PM", typeCol:"Type_personne",
-  groupes:[
-    { type:"Dirigeant", titre:"Dirigeant(s)"},
-    { type:"Personnel / bénévole", titre:"Personnel(s) / bénévole(s)"},
   groupes:[
     { type:"Physique", titre:"Personne(s) physique(s) liée(s)", cols:[
       {id:"Pseudonyme", label:"Pseudonyme", type:"text"},
@@ -190,6 +190,8 @@ let modifie = false;
 const el = id => document.getElementById(id);
 // Gommette « à compléter » : un champ est vide s'il n'a ni texte, ni date, ni choix
 function champVide(ch){
+  const zoneLignes = ch.querySelector(".lignes");     // champ « lignes » : vide si aucune ligne n'est remplie
+  if(zoneLignes) return ![...zoneLignes.querySelectorAll("input")].some(i=> i.value.trim());
   const saisie = ch.querySelector("input, select, textarea");
   if(saisie && SANS_PASTILLE.some(id=> saisie.id.endsWith("_" + id))) return false;
   const cases = ch.querySelectorAll("input[type=checkbox]");
@@ -350,11 +352,22 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
   if(champ.type==="bool"){
     return `<input type="checkbox" id="${nom}" style="width:auto;height:18px;" ${valeur?"checked":""}>`;
   }
+  if(champ.type==="lignes"){
+    // une ligne de saisie par entrée ; le tout est enregistré dans la colonne, une entrée par ligne
+    const lignes = String(valeur||"").split("\n").filter(l=>l.trim());
+    if(!lignes.length) lignes.push("");              // au moins une ligne vide pour commencer
+    return `<div class="lignes" id="${nom}">${lignes.map(ligneLibreHTML).join("")}</div>`
+         + `<button class="sec petit" type="button" data-addligne="${nom}">+ Ajouter une ligne</button>`;
+  }
   return "";
+}
+function ligneLibreHTML(v){
+  return `<div class="ligne-libre"><input value="${esc(v)}"><button class="lien" type="button" title="Supprimer" data-supligne>\u2715</button></div>`;
 }
 function lireChamp(champ, prefix){
   const n = document.getElementById(prefix+champ.id);
   if(!n) return undefined;
+  if(champ.type==="lignes")     return [...n.querySelectorAll("input")].map(i=>i.value.trim()).filter(Boolean).join("\n");
   if(champ.type==="date")       return inputVersDate(n.value);
   if(champ.type==="reftype")    return n.value? Number(n.value) : 0;
   if(champ.type==="number")     return n.value===""? null : parseFloat(n.value);
@@ -556,7 +569,7 @@ function imprimerFiche(){
       h2{font-size:13px; color:#fff; background:#0F6E6E; padding:4px 8px; margin:16px 0 6px; border-radius:3px;}
       h3{font-size:12px; margin:12px 0 4px; color:#0F6E6E;}
       table.ch{width:100%; border-collapse:collapse; margin-bottom:8px;}
-      table.ch td{border:0.5px solid #ccc; padding:4px 6px; vertical-align:top;}
+      table.ch td{border:0.5px solid #ccc; padding:4px 6px; vertical-align:top; white-space:pre-line;}
       td.lbl{width:32%; color:#555; background:#f4f5f7;}
       table.lie{width:100%; border-collapse:collapse; margin-bottom:8px;}
       table.lie th{background:#E1F2F1; color:#0F6E6E; text-align:left; font-weight:600; border:0.5px solid #ccc; padding:4px 6px;}
@@ -661,6 +674,23 @@ function lieesImpression(){
 ["input","change"].forEach(t=> el("contenu").addEventListener(t, e=>{
   const ch = e.target.closest(".champ"); if(ch) ch.classList.toggle("manque", ficheDejaEnregistree() && champVide(ch));
 }));
+// champ « lignes » : boutons « + Ajouter une ligne » et « ✕ »
+el("contenu").addEventListener("click", e=>{
+  const ajout = e.target.closest("[data-addligne]");
+  if(ajout){
+    const zone = el(ajout.dataset.addligne);
+    zone.insertAdjacentHTML("beforeend", ligneLibreHTML(""));
+    zone.lastElementChild.querySelector("input").focus();
+    marquerModifie(); return;
+  }
+  const sup = e.target.closest("[data-supligne]");
+  if(sup){
+    const ch = sup.closest(".champ");
+    sup.closest(".ligne-libre").remove();
+    marquerModifie();
+    if(ch) ch.classList.toggle("manque", ficheDejaEnregistree() && champVide(ch));
+  }
+});
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
 el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
