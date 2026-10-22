@@ -209,7 +209,7 @@ function ficheDejaEnregistree(){
   return champs.some(c=> !valeurVide(recordActuel[c.id])) || controlesActuels.some(x=> x.id);
 }
 
-const SANS_PASTILLE = ["Commentaire_signalement", "commentaires", "Commentaires"];
+const SANS_PASTILLE = ["Commentaire_signalement", "commentaires", "Commentaires", "Controles_origine", "Champs_libre"];
   
 function marquerVides(){
   const actif = ficheDejaEnregistree();
