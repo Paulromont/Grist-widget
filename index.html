@@ -207,9 +207,16 @@ function dateVersTexte(s){                     // date Grist -> "JJ/MM/AAAA"
   const d = new Date(s*1000), p = n=> String(n).padStart(2,"0");
   return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+d.getUTCFullYear();
 }
+function versSecondes(v){                     // une date Grist peut arriver en nombre, en objet Date ou en texte
+  if(typeof v==="number") return v;
+  if(v instanceof Date) return isNaN(v) ? null : Math.round(v.getTime()/1000);
+  if(typeof v==="string" && v){ const t = Date.parse(v); return isNaN(t) ? null : Math.round(t/1000); }
+  return null;
+}
 function datesCLIRde(rec, colDerniere){        // toutes les dates d'une fiche, sans doublon, de la plus ancienne à la plus récente
   const dates = new Set(texteVersDates(rec[COL_DATES_CLIR]));
-  if(typeof rec[colDerniere]==="number") dates.add(rec[colDerniere]);
+  const derniere = versSecondes(rec[colDerniere]);
+  if(derniere!=null) dates.add(derniere);
   return [...dates].sort((a,b)=> a-b);
 }
 function lireDatesCLIR(zone){                  // dates saisies dans la fiche, triées, sans doublon
@@ -828,7 +835,16 @@ async function nouvelleFiche(){
     btn.disabled = false;
   }
 }
+// Relit la ligne complète dans la table : grist.onRecord ne transmet que les colonnes affichées
+// dans le widget, donc une colonne ajoutée ensuite (ex. Dates_CLIR) peut manquer.
+async function ligneComplete(id){
+  const t = await grist.docApi.fetchTable(TABLE_ENTITE);
+  const i = t.id.indexOf(id);
+  if(i < 0) return null;
+  const o = {}; Object.keys(t).forEach(c=>{ o[c] = t[c][i]; }); return o;
+}
 async function chargerFiche(rec){
+  try{ const brut = await ligneComplete(rec.id); if(brut) rec = Object.assign({}, rec, brut); }catch(e){ console.warn(e); }
   recordActuel = rec;
   el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
   await chargerControles(rec.id);
