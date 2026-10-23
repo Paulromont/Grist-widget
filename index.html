@@ -107,6 +107,7 @@ const SECTIONS = [
     {id:"Objectif",         label:"Objectif d'intérêt local / national", type:"choice", large:true},
     {id:"Ville",            label:"Ville", type:"text"},
     {id:"Autres_adresses",  label:"Autre(s) ville(s) où est présente l'objectif", type:"text"},
+    {id:"Departements_partages", label:"Département(s) associé(s) : la fiche leur est partagée", type:"choicelist", large:true},
     {id:"Statut_juridique", label:"Statut juridique", type:"choice"},
     {id:"Date_creation",    label:"Date de création de la structure", type:"date"},
     {id:"Numero_RNA",       label:"Numéro RNA", type:"text"},
@@ -265,7 +266,12 @@ function ficheDejaEnregistree(){
   return champs.some(c=> !valeurVide(recordActuel[c.id])) || controlesActuels.some(x=> x.id);
 }
 
-const SANS_PASTILLE = ["Commentaire_signalement", "commentaires", "Commentaires", "Controles_origine", "Champs_libre", "Commentaire_identite", "Commentaire_domaine_activite"];
+// deux listes de choix identiques (même contenu, quel que soit l'ordre) ?
+function memeListe(a, b){
+  const t = v=> listeVersTab(v).slice().sort().join("\u0001");
+  return t(a) === t(b);
+}
+const SANS_PASTILLE = ["Departements_partages", "Commentaire_signalement", "commentaires", "Commentaires", "Controles_origine", "Champs_libre", "Commentaire_identite", "Commentaire_domaine_activite"];
   
 function marquerVides(){
   const actif = ficheDejaEnregistree();
@@ -546,7 +552,10 @@ async function enregistrer(){
     const champsPM = {};
     for(const sec of SECTIONS) for(const c of sec.champs){
       if(c.bloc || c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
-      const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
+      const v = lireChamp(c, "pm_"); if(v===undefined) continue;
+      // partage : n'envoyer que s'il a changé (seul le département d'origine a le droit de le modifier)
+      if(c.id==="Departements_partages" && memeListe(v, recordActuel[c.id])) continue;
+      champsPM[c.id]=v;
     }
     // toutes les dates de CLIR dans la colonne texte (la plus récente est déjà dans la colonne de date)
     for(const sec of SECTIONS) for(const c of sec.champs){
