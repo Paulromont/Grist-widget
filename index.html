@@ -27,6 +27,13 @@
   /* listes à choix multiples (domaines d'activité…) : l'une sous l'autre quand leurs choix ne tiennent pas en largeur */
   .grille.listes-empilees > .champ.liste{grid-column:1 / -1;}
   label{font-size:12px; color:var(--muet);}
+  /* listes à choix multiples : un menu déroulant pour ajouter, les choix affichés en étiquettes au-dessus */
+  .etiquettes{display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;}
+  .etiquettes:empty{display:none;}
+  .etiquette{display:inline-flex; align-items:center; gap:2px; background:var(--bleu-clair); color:var(--bleu);
+     border:1px solid var(--bleu); border-radius:12px; padding:2px 2px 2px 10px; font-size:12.5px; line-height:1.3;}
+  .etiquette button{background:none; border:none; color:inherit; cursor:pointer; padding:0 6px; font-size:12px; width:auto;}
+  .etiquette button:hover{color:#b42318;}
   input,select,textarea{font:inherit; padding:6px 8px; border:1px solid var(--bord);
      border-radius:6px; background:#fff; color:var(--txt); width:100%;}
   textarea{min-height:60px; resize:vertical;}
@@ -236,6 +243,22 @@ function majDernieres(){                        // repère « dernière » sur l
     lignes.forEach(l=> l.classList.toggle("est-derniere", nbRemplies > 1 && val(l) === max));
   });
 }
+// Listes à choix multiples : affiche les choix en étiquettes (avec ✕) et remplit le menu « Ajouter » avec les choix restants
+function majChoixMultiples(){
+  el("contenu").querySelectorAll(".ajout-choix").forEach(menu=>{
+    const liste = el(menu.dataset.pour); if(!liste) return;
+    const zone = menu.parentNode.querySelector(".etiquettes");
+    const choisis = [...liste.options].filter(o=> o.selected), libres = [...liste.options].filter(o=> !o.selected);
+    zone.innerHTML = choisis.map(o=>`<span class="etiquette">${esc(o.value)}<button type="button" title="Retirer" data-retirer="${esc(o.value)}">\u2715</button></span>`).join("");
+    menu.innerHTML = `<option value="">${choisis.length ? "+ Ajouter un choix…" : "Choisir…"}</option>`
+                   + libres.map(o=>`<option value="${esc(o.value)}">${esc(o.value)}</option>`).join("");
+    menu.value = ""; menu.disabled = !libres.length;
+  });
+}
+function signalerChangement(liste){        // prévient le reste de la fiche (bouton Enregistrer, pastille)
+  liste.dispatchEvent(new Event("input", { bubbles:true }));
+  liste.dispatchEvent(new Event("change", { bubbles:true }));
+}
 // Gommette « à compléter » : un champ est vide s'il n'a ni texte, ni date, ni choix
 function champVide(ch){
   const zoneDates = ch.querySelector(".dates-clir");     // dates de CLIR : vide si aucune date
@@ -377,9 +400,11 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
     const table = prefix.startsWith("ctrl") ? CONTROLES.table : TABLE_ENTITE;
     const opts = (choix[table]&&choix[table][champ.id])||[];
     const sel = listeVersTab(valeur);
-    return `<select id="${nom}" multiple size="4">`+
-        opts.map(o=>`<option ${sel.includes(o)?"selected":""} value="${esc(o)}">${esc(o)}</option>`).join("")+
-      `</select>`;
+    const tous = [...opts, ...sel.filter(v=> !opts.includes(v))];   // garde aussi une valeur qui n'est plus dans la liste
+    // liste cachée (c'est elle qui est lue à l'enregistrement) + étiquettes des choix + menu déroulant pour en ajouter
+    return `<select id="${nom}" multiple style="display:none">`+
+        tous.map(o=>`<option ${sel.includes(o)?"selected":""} value="${esc(o)}">${esc(o)}</option>`).join("")+
+      `</select><div class="etiquettes" data-pour="${nom}"></div><select class="ajout-choix" data-pour="${nom}"></select>`;
   }
   if(champ.type==="reftype"){
     const dispo = typesRows.filter(r=>!ctrlCat || r.categorie===ctrlCat);
@@ -510,7 +535,7 @@ function rendreControles(depuisChangement){
   });
   if(zC) zC.innerHTML = htmlC || `<p class="vide">Aucun contr\u00f4le pour cet objectif.</p>`;
   if(zE) zE.innerHTML = htmlE || `<p class="vide">Aucune entrave pour cet objectif.</p>`;
-  marquerVides(); ajusterListes(); majDernieres();
+  majChoixMultiples(); marquerVides(); ajusterListes(); majDernieres();
   document.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
     capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
@@ -786,6 +811,19 @@ el("contenu").addEventListener("click", e=>{
   }
 });
 el("contenu").addEventListener("change", e=>{ if(e.target.closest(".dates-clir")) majDernieres(); });
+// listes à choix multiples : choisir dans le menu ajoute une étiquette, ✕ la retire
+el("contenu").addEventListener("change", e=>{
+  const menu = e.target.closest(".ajout-choix"); if(!menu || !menu.value) return;
+  const liste = el(menu.dataset.pour);
+  [...liste.options].forEach(o=>{ if(o.value === menu.value) o.selected = true; });
+  majChoixMultiples(); signalerChangement(liste);
+});
+el("contenu").addEventListener("click", e=>{
+  const x = e.target.closest("[data-retirer]"); if(!x) return;
+  const liste = el(x.closest(".etiquettes").dataset.pour);
+  [...liste.options].forEach(o=>{ if(o.value === x.dataset.retirer) o.selected = false; });
+  majChoixMultiples(); signalerChangement(liste);
+});
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
 el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
