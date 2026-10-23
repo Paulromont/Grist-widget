@@ -97,7 +97,8 @@
 const MAX = 8;   // nombre d'actions détaillées en colonnes
 
 const ENTITE_PM = [
-  {id:"Dates_passage_CLIR",label:"Date de passage en CLIR",type:"date"},
+  {id:"Dates_passage_CLIR",label:"Dernière date de passage en CLIR",type:"date"},
+  {id:"_dates_CLIR",label:"Dates de passage en CLIR",type:"datesclir",col:"Dates_passage_CLIR"},
   {id:"Etat_du_dossier",label:"État du suivi",type:"text"},
   {id:"Affiliation",label:"Affiliation",type:"text"},
   {id:"Mouvance",label:"Mouvance",type:"text"},
@@ -127,7 +128,8 @@ const ENTITE_PM = [
 ];
 
 const ENTITE_PP = [
-  {id:"Dates_de_passage_en_CLIR",label:"Date de passage en CLIR",type:"date"},
+  {id:"Dates_de_passage_en_CLIR",label:"Dernière date de passage en CLIR",type:"date"},
+  {id:"_dates_CLIR",label:"Dates de passage en CLIR",type:"datesclir",col:"Dates_de_passage_en_CLIR"},
   {id:"Etat_du_dossier",label:"État du suivi",type:"text"},
   {id:"Affiliation",label:"Affiliation",type:"text"},
   {id:"Mouvance",label:"Mouvance",type:"text"},
@@ -252,7 +254,9 @@ function construireFeuille(entites, champsEntite, actionsParEntite, ctx, champsA
   }
   const rows = [header];
   for(const e of entites){
-    const row = champsEntite.map(c=> c.type==="liees" ? fmtLiees(e, c, ctx) : fmt(e[c.id], c.type, ctx));
+    const row = champsEntite.map(c=> c.type==="liees" ? fmtLiees(e, c, ctx)
+                                   : c.type==="datesclir" ? datesCLIR(e, c.col).map(fmtDate).join("\n")   // toutes les dates, une par ligne
+                                   : fmt(e[c.id], c.type, ctx));
     if(!ACTION.length){ rows.push(row); continue; }
     const acts = (actionsParEntite[e.id]||[]).slice().sort((a,b)=>dateAction(a)-dateAction(b));
     if(enCellule){
@@ -429,7 +433,22 @@ async function lireDonnees(){
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 const anDe = d => typeof d==="number" ? new Date(d*1000).getUTCFullYear() : null;
 const moisDe = d => typeof d==="number" ? new Date(d*1000).getUTCMonth()+1 : null;
-const dateFiche = (type, e) => type==="PM" ? e.Dates_passage_CLIR : e.Dates_de_passage_en_CLIR;
+// Une fiche peut avoir plusieurs dates de passage en CLIR : la dernière (colonne de date)
+// et toutes les autres dans la colonne texte « Dates_CLIR » (une date JJ/MM/AAAA par ligne)
+const COL_CLIR = { PM:"Dates_passage_CLIR", PP:"Dates_de_passage_en_CLIR" };
+function texteVersDates(t){
+  return String(t||"").split("\n").map(l=>{
+    const m = l.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    return m ? Date.UTC(+m[3], +m[2]-1, +m[1])/1000 : null;
+  }).filter(v=> v!=null);
+}
+function datesCLIR(e, colDerniere){            // toutes les dates d'une fiche, triées, sans doublon
+  const d = new Set(texteVersDates(e.Dates_CLIR));
+  if(typeof e[colDerniere]==="number") d.add(e[colDerniere]);
+  return [...d].sort((a,b)=> a-b);
+}
+// fiche gardée : en « Totaux », toutes ; sinon, si AU MOINS UNE de ses dates de CLIR est dans la période
+const garderFiche = (type, e) => !el("mode").value || datesCLIR(e, COL_CLIR[type]).some(dansPeriode);
 const dateAct = a => a.Date_declenchement || a.Date_notification;
 // vrai si la date est dans la période ; en « Totaux », tout passe (même sans date)
 function dansPeriode(d){
@@ -448,7 +467,7 @@ function majPeriode(){
   el("annee").style.display = m ? "" : "none";
   el("mois").style.display = m==="mois" ? "" : "none";
   el("aidePeriode").textContent = m
-    ? "Seules les fiches dont la date de passage en CLIR est dans la période sont exportées, avec uniquement leurs actions datées de cette période."
+    ? "Seules les fiches dont au moins une date de passage en CLIR est dans la période sont exportées, avec uniquement leurs actions datées de cette période."
     : "Toutes les fiches et toutes leurs actions sont exportées, quelle que soit leur date.";
   if(el("panneau").classList.contains("ouvert")){ el("fiches").innerHTML=""; rendreFiches(); }
 }
@@ -457,6 +476,7 @@ async function remplirAnnees(){
   try{
     const [tPM,tPP,tC] = await Promise.all(["PM","PP","Controles"].map(n=>grist.docApi.fetchTable(n)));
     ans = [...(tPM.Dates_passage_CLIR||[]), ...(tPP.Dates_de_passage_en_CLIR||[]),
+           ...[...(tPM.Dates_CLIR||[]), ...(tPP.Dates_CLIR||[])].flatMap(texteVersDates),
            ...(tC.Date_declenchement||[]), ...(tC.Date_notification||[])].map(anDe).filter(Boolean);
   }catch(e){}
   ans = [...new Set([...ans, new Date().getFullYear()])].sort((a,b)=>b-a);
@@ -477,7 +497,7 @@ async function exporter(mode, opts){
     let total = 0;
     const feuille = (type, nomFeuille, entites, champs, parEntite)=>{
       // période : fiches selon leur date de passage en CLIR, actions selon leur propre date
-      entites = entites.filter(e=>dansPeriode(dateFiche(type, e)));
+      entites = entites.filter(e=>garderFiche(type, e));
       const actions = {};
       for(const id in parEntite) actions[id] = parEntite[id].filter(a=>dansPeriode(dateAct(a)));
       parEntite = actions;
@@ -523,13 +543,13 @@ function caseHtml(groupe, id, label, coche){
 
 // Colonnes cochées à l'ouverture du panneau (toujours les mêmes)
 const DEFAUT = {
-  PM:  ["Dates_passage_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre","Autres_adresses","Date_creation","Numero_RNA","Numero_SIRET","Activite_presentiel_ligne","Date_signalement","Service_signalant","Contenu_signalement","Commentaire_signalement","Dirigeants","Personnels_benevoles","_liees_Physique","_liees_Morale","Departement"],
-  PP:  ["Dates_de_passage_en_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre","Nationalite","Departement","Ville","Date_signalement","Service_signalant","Contenu_signalement","_liees_Physique","_liees_Morale"],
+  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre","Autres_adresses","Date_creation","Numero_RNA","Numero_SIRET","Activite_presentiel_ligne","Date_signalement","Service_signalant","Contenu_signalement","Commentaire_signalement","Dirigeants","Personnels_benevoles","_liees_Physique","_liees_Morale","Departement"],
+  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre","Nationalite","Departement","Ville","Date_signalement","Service_signalant","Contenu_signalement","_liees_Physique","_liees_Morale"],
   ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine","Duree_jours","Motif_ERP","Montant_notifie","Montant_recouvre","Montant_applicable","Commentaires"]
 };
   const ALEGE = {
-  PM:  ["Dates_passage_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre"],
-  PP:  ["Dates_de_passage_en_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre"],
+  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre"],
+  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre"],
   ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine"]
 };
   
@@ -551,7 +571,7 @@ function rendreFiches(){
   const premiere = !el("fiches").querySelector("input");
   let h = "";
   for(const t of typesDe(typePerso())){
-    const liste = donneesPanneau[t].filter(e=>dansPeriode(dateFiche(t, e))).sort((a,b)=>String(a.Pseudonyme||"").localeCompare(String(b.Pseudonyme||""),"fr"));
+    const liste = donneesPanneau[t].filter(e=>garderFiche(t, e)).sort((a,b)=>String(a.Pseudonyme||"").localeCompare(String(b.Pseudonyme||""),"fr"));
     if(typePerso()==="TOUT") h += `<div class="groupe">${LIBELLE[t]}</div>`;
     if(!liste.length) h += `<span class="meta">Aucune fiche pour cette période.</span>`;
     for(const e of liste){
