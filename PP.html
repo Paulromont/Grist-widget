@@ -69,6 +69,12 @@
   table.liees td.act{width:44px; text-align:center;}
   table.liees td.vide{text-align:center; border:1px solid var(--bord);}
   button.petit{padding:4px 12px; margin-top:6px; font-size:13px;}
+  /* dates de passage en CLIR : une ligne par date, la plus récente marquée « dernière » */
+  .ligne-date{display:flex; align-items:center; gap:6px; margin-bottom:4px;}
+  .ligne-date input{width:auto; flex:0 0 170px;}
+  .ligne-date .derniere{display:none; font-size:11px; font-weight:600; color:var(--bleu); background:#fff;
+     border:1px solid var(--bleu); border-radius:9px; padding:0 7px;}
+  .ligne-date.est-derniere .derniere{display:inline;}
 </style>
 </head>
 <body>
@@ -88,7 +94,7 @@
 <script>
 const SECTIONS = [
   { titre:null, champs:[
-    {id:"Dates_de_passage_en_CLIR", label:"Date de passage en CLIR", type:"date"},
+    {id:"Dates_de_passage_en_CLIR", label:"Date(s) de passage en CLIR", type:"datesclir"},
   ]},
   { titre:"Identité de l'objectif", champs:[
     {id:"Pseudonyme",   label:"Pseudonyme", type:"text"},
@@ -171,8 +177,46 @@ let controlesActuels = [];
 let modifie = false;
 
 const el = id => document.getElementById(id);
+/* ---------- Dates de passage en CLIR (plusieurs dates par fiche) ----------
+   La colonne de date existante garde la DERNIÈRE date (c'est elle que filtrent Grist et les autres vues) ;
+   la colonne texte COL_DATES_CLIR garde TOUTES les dates, une par ligne, au format JJ/MM/AAAA. */
+const COL_DATES_CLIR = "Dates_CLIR";
+function colonneExiste(id){ return !!(choix[TABLE_ENTITE] && id in choix[TABLE_ENTITE]); }
+function texteVersDates(t){                    // "12/03/2026\n05/06/2026" -> dates Grist (secondes)
+  return String(t||"").split("\n").map(l=>{
+    const m = l.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    return m ? Date.UTC(+m[3], +m[2]-1, +m[1])/1000 : null;
+  }).filter(v=> v!=null);
+}
+function dateVersTexte(s){                     // date Grist -> "JJ/MM/AAAA"
+  const d = new Date(s*1000), p = n=> String(n).padStart(2,"0");
+  return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+d.getUTCFullYear();
+}
+function datesCLIRde(rec, colDerniere){        // toutes les dates d'une fiche, sans doublon, de la plus ancienne à la plus récente
+  const dates = new Set(texteVersDates(rec[COL_DATES_CLIR]));
+  if(typeof rec[colDerniere]==="number") dates.add(rec[colDerniere]);
+  return [...dates].sort((a,b)=> a-b);
+}
+function lireDatesCLIR(zone){                  // dates saisies dans la fiche, triées, sans doublon
+  return [...new Set([...zone.querySelectorAll("input")].map(i=> inputVersDate(i.value)).filter(v=> v!=null))].sort((a,b)=> a-b);
+}
+function ligneDateHTML(v){
+  return `<div class="ligne-date"><input type="date" value="${esc(v)}"><span class="derniere">dernière</span>`
+       + `<button class="lien" type="button" title="Supprimer cette date" data-supdate>\u2715</button></div>`;
+}
+function majDernieres(){                        // repère « dernière » sur la date la plus récente (s'il y en a plusieurs)
+  el("contenu").querySelectorAll(".dates-clir").forEach(z=>{
+    const lignes = [...z.querySelectorAll(".ligne-date")];
+    const val = l=> { const v = l.querySelector("input").value; return v ? Date.parse(v) : -Infinity; };
+    const max = Math.max(-Infinity, ...lignes.map(val));
+    const nbRemplies = lignes.filter(l=> isFinite(val(l))).length;
+    lignes.forEach(l=> l.classList.toggle("est-derniere", nbRemplies > 1 && val(l) === max));
+  });
+}
 // Gommette « à compléter » : un champ est vide s'il n'a ni texte, ni date, ni choix
 function champVide(ch){
+  const zoneDates = ch.querySelector(".dates-clir");     // dates de CLIR : vide si aucune date
+  if(zoneDates) return ![...zoneDates.querySelectorAll("input")].some(i=> i.value);
   const saisie = ch.querySelector("input, select, textarea");
   if(saisie && SANS_PASTILLE.some(id=> saisie.id.endsWith("_" + id))) return false;
   const cases = ch.querySelectorAll("input[type=checkbox]");
@@ -328,6 +372,16 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
   if(champ.type==="number"){
     return `<input type="number" step="0.01" id="${nom}" value="${valeur!=null?esc(valeur):""}">`;
   }
+  if(champ.type==="datesclir"){
+    // toutes les dates de passage en CLIR de la fiche, de la plus ancienne à la plus récente
+    const multi = colonneExiste(COL_DATES_CLIR);
+    const dates = recordActuel ? datesCLIRde(recordActuel, champ.id) : [];
+    const lignes = (multi ? dates : dates.slice(-1)).map(dateVersInput);
+    if(!lignes.length) lignes.push("");              // au moins une ligne vide pour commencer
+    return `<div class="dates-clir" id="${nom}">${lignes.map(ligneDateHTML).join("")}</div>`
+      + (multi ? `<button class="sec petit" type="button" data-adddate="${nom}">+ Ajouter une date de CLIR</button>`
+               : `<div class="vide" style="padding:4px 0;">Pour enregistrer plusieurs dates, créez la colonne texte « ${COL_DATES_CLIR} » dans la table ${TABLE_ENTITE}.</div>`);
+  }
   if(champ.type==="bool"){
     return `<input type="checkbox" id="${nom}" style="width:auto;height:18px;" ${valeur?"checked":""}>`;
   }
@@ -336,6 +390,7 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
 function lireChamp(champ, prefix){
   const n = document.getElementById(prefix+champ.id);
   if(!n) return undefined;
+  if(champ.type==="datesclir")  { const d = lireDatesCLIR(n); return d.length ? d[d.length-1] : null; }   // la plus récente
   if(champ.type==="date")       return inputVersDate(n.value);
   if(champ.type==="reftype")    return n.value? Number(n.value) : 0;
   if(champ.type==="number")     return n.value===""? null : parseFloat(n.value);
@@ -412,7 +467,7 @@ function rendreControles(depuisChangement){
   });
   if(zC) zC.innerHTML = htmlC || `<p class="vide">Aucun contr\u00f4le pour cet objectif.</p>`;
   if(zE) zE.innerHTML = htmlE || `<p class="vide">Aucune entrave pour cet objectif.</p>`;
-  marquerVides(); ajusterListes();
+  marquerVides(); ajusterListes(); majDernieres();
   document.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
     capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
@@ -455,6 +510,12 @@ async function enregistrer(){
     for(const sec of SECTIONS) for(const c of sec.champs){
       if(c.bloc || c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
       const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
+    }
+    // toutes les dates de CLIR dans la colonne texte (la plus récente est déjà dans la colonne de date)
+    for(const sec of SECTIONS) for(const c of sec.champs){
+      if(c.type!=="datesclir" || !colonneExiste(COL_DATES_CLIR)) continue;
+      const z = document.getElementById("pm_"+c.id);
+      if(z) champsPM[COL_DATES_CLIR] = lireDatesCLIR(z).map(dateVersTexte).join("\n");
     }
     await grist.selectedTable.update({ id: recordActuel.id, fields: champsPM });
     const actions = [];
@@ -502,7 +563,8 @@ function imprimerFiche(){
     const vider = ()=>{ if(lignes){ bloc += `<table class="ch">${lignes}</table>`; lignes = ""; } };
     for(const c of sec.champs){
       if(c.bloc==="liees"){ vider(); bloc += lieesImpression(); continue; }
-      const v = valeurAffichee(c, recordActuel[c.id]);
+      const v = c.type==="datesclir" ? datesCLIRde(recordActuel, c.id).map(dateVersTexte).join("\n")
+                                    : valeurAffichee(c, recordActuel[c.id]);
       if(v!=="") lignes += `<tr><td class="lbl">${esc(c.label)}</td><td>${esc(v)}</td></tr>`;
     }
     vider();
@@ -537,7 +599,7 @@ function imprimerFiche(){
       h2{font-size:13px; color:#fff; background:#6B2D6B; padding:4px 8px; margin:16px 0 6px; border-radius:3px;}
       h3{font-size:12px; margin:12px 0 4px; color:#6B2D6B;}
       table.ch{width:100%; border-collapse:collapse; margin-bottom:8px;}
-      table.ch td{border:0.5px solid #ccc; padding:4px 6px; vertical-align:top;}
+      table.ch td{border:0.5px solid #ccc; padding:4px 6px; vertical-align:top; white-space:pre-line;}
       td.lbl{width:32%; color:#555; background:#f4f5f7;}
       table.lie{width:100%; border-collapse:collapse; margin-bottom:8px;}
       table.lie th{background:#F3E8F3; color:#6B2D6B; text-align:left; font-weight:600; border:0.5px solid #ccc; padding:4px 6px;}
@@ -642,6 +704,25 @@ function lieesImpression(){
 ["input","change"].forEach(t=> el("contenu").addEventListener(t, e=>{
   const ch = e.target.closest(".champ"); if(ch) ch.classList.toggle("manque", ficheDejaEnregistree() && champVide(ch));
 }));
+// dates de CLIR : « + Ajouter une date de CLIR », « ✕ » et repère de la dernière date
+el("contenu").addEventListener("click", e=>{
+  const ajoutDate = e.target.closest("[data-adddate]");
+  if(ajoutDate){
+    const zone = el(ajoutDate.dataset.adddate);
+    zone.insertAdjacentHTML("beforeend", ligneDateHTML(""));
+    zone.lastElementChild.querySelector("input").focus();
+    marquerModifie(); majDernieres(); return;
+  }
+  const supDate = e.target.closest("[data-supdate]");
+  if(supDate){
+    const zone = supDate.closest(".dates-clir"), ch = supDate.closest(".champ");
+    supDate.closest(".ligne-date").remove();
+    if(!zone.querySelector(".ligne-date")) zone.insertAdjacentHTML("beforeend", ligneDateHTML(""));   // garder une ligne
+    marquerModifie(); majDernieres();
+    if(ch) ch.classList.toggle("manque", ficheDejaEnregistree() && champVide(ch));
+  }
+});
+el("contenu").addEventListener("change", e=>{ if(e.target.closest(".dates-clir")) majDernieres(); });
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
 el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
