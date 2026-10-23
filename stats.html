@@ -156,8 +156,10 @@ async function charger(){
     const libType = {}; TYP.forEach(t=>libType[t.id]=t.Libelle);
     C.forEach(c=>{ c._type = libType[c.Type_controle] || ""; c._entrave = norm(c.Nature_du_controle_entrave).includes("entrave");
                    c._date = c.Date_declenchement || c.Date_notification; });
-    PM.forEach(r=>{ r._date = r.Dates_passage_CLIR; });
-    PP.forEach(r=>{ r._date = r.Dates_de_passage_en_CLIR; });
+    // une fiche peut avoir plusieurs dates de passage en CLIR : la dernière (colonne de date)
+    // et toutes les autres dans la colonne texte « Dates_CLIR » (une date JJ/MM/AAAA par ligne)
+    PM.forEach(r=>{ r._dates = datesCLIR(r, "Dates_passage_CLIR"); });
+    PP.forEach(r=>{ r._dates = datesCLIR(r, "Dates_de_passage_en_CLIR"); });
     B = {PM, PP, C, CAT, TYP};
     remplirFiltres();
     rendre();
@@ -173,7 +175,7 @@ function remplirFiltres(){
   el("l-dept").style.display = deps.length>1 ? "" : "none";
   B.deps = deps;
   // années trouvées dans les dates de passage en CLIR et dans les dates des actions
-  const ans = [...new Set([...B.PM,...B.PP,...B.C].map(r=>anDe(r._date)).filter(Boolean))].sort((a,b)=>b-a);
+  const ans = [...new Set([...[...B.PM,...B.PP].flatMap(r=>r._dates), ...B.C.map(c=>c._date)].map(anDe).filter(Boolean))].sort((a,b)=>b-a);
   const cette = new Date().getFullYear();
   if(!ans.includes(cette)) ans.unshift(cette);
   const sa = el("annee"), av = sa.value;
@@ -188,6 +190,16 @@ function remplirFiltres(){
 }
 
 /* ---------- période ---------- */
+// toutes les dates de passage en CLIR d'une fiche (secondes), sans doublon
+function datesCLIR(r, colDerniere){
+  const d = new Set();
+  if(typeof r[colDerniere]==="number") d.add(r[colDerniere]);
+  for(const l of String(r.Dates_CLIR||"").split("\n")){
+    const m = l.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m) d.add(Date.UTC(+m[3], +m[2]-1, +m[1])/1000);
+  }
+  return [...d];
+}
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 const anDe = d => typeof d==="number" ? new Date(d*1000).getUTCFullYear() : null;
 const moisDe = d => typeof d==="number" ? new Date(d*1000).getUTCMonth()+1 : null;
@@ -315,8 +327,9 @@ function rendre(){
   const dansDep = r => !dep || r.Departement===dep;
   // fiches du département (sans filtre de période) : servent à relier les actions à leur fiche
   const PMdep = B.PM.filter(dansDep);
-  // partie 1 : fiches dont la date de passage en CLIR est dans la période
-  const PM = PMdep.filter(r=>dansPeriode(r._date)), PP = B.PP.filter(r=>dansDep(r) && dansPeriode(r._date));
+  // partie 1 : fiches dont une des dates de passage en CLIR est dans la période
+  // une fiche est comptée si AU MOINS UNE de ses dates de passage en CLIR tombe dans la période
+  const PM = PMdep.filter(r=>r._dates.some(dansPeriode)), PP = B.PP.filter(r=>dansDep(r) && r._dates.some(dansPeriode));
   const tous = [...PM, ...PP];
   const C = B.C.filter(c=>(!dep || c.Departement===dep) && dansPeriode(c._date));
   const ctrl = C.filter(c=>!c._entrave), entr = C.filter(c=>c._entrave);
@@ -328,7 +341,7 @@ function rendre(){
     + " · " + PM.length + " personne(s) morale(s), " + PP.length + " personne(s) physique(s)"
     + " · " + C.length + " action(s)";
   // fiches et actions écartées faute de date
-  const sansDate = [...B.PM, ...B.PP].filter(r=>dansDep(r) && typeof r._date!=="number").length;
+  const sansDate = [...B.PM, ...B.PP].filter(r=>dansDep(r) && !r._dates.length).length;
   const actSansDate = B.C.filter(c=>(!dep || c.Departement===dep) && typeof c._date!=="number").length;
   if(sansDate || actSansDate) el("perimetre").textContent +=
     " · Non comptées faute de date : " + sansDate + " fiche(s), " + actSansDate + " action(s)";
@@ -337,7 +350,7 @@ function rendre(){
 
   /* ===== 1 ===== */
   h += `<h2 class="sec">1. Analyse de l'état descriptif des objectifs suivis</h2>`;
-  h += `<p class="perimetre">Partie 1 : seules les fiches ayant une date de passage en CLIR${periode ? " comprise dans la période ("+esc(libellePeriode())+")" : ""} sont comptées.</p>`;
+  h += `<p class="perimetre">Partie 1 : seules les fiches ayant au moins une date de passage en CLIR${periode ? " comprise dans la période ("+esc(libellePeriode())+")" : ""} sont comptées (une fiche passée plusieurs fois en CLIR sur la période n'est comptée qu'une fois).</p>`;
   h += `<h3>1.1 Caractérisation des objectifs suivis, selon leur mouvance de rattachement</h3>`;
   const MOUV = ch("PM.Mouvance"), AFF = ch("PM.Affiliation");
   h += grille(
