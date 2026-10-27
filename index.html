@@ -575,33 +575,59 @@ function etatMsg(t, cls){ el("etat").textContent = t; el("etat").className = "et
 
 // Toutes les modifications (fiche, contrôles, entraves, personnes liées) en UNE liste d'actions :
 // Grist les applique toutes, ou aucune s'il y a une erreur.
+/* ---------- Plusieurs personnes sur la même fiche ----------
+   « base » = la fiche telle qu'elle était dans Grist quand elle a été affichée. À l'enregistrement, on n'envoie
+   que ce que VOUS avez changé par rapport à cette base : un champ modifié entre-temps par quelqu'un d'autre,
+   et que vous n'avez pas touché, n'est donc jamais écrasé. */
+let base = { fiche:{}, ctrls:{}, liees:{} };
+const egal = (a, b)=> JSON.stringify(a===undefined ? null : a) === JSON.stringify(b===undefined ? null : b);
+function valeursFiche(){                       // valeurs de la fiche, au format envoyé à Grist
+  const f = {};
+  for(const sec of SECTIONS) for(const c of sec.champs){
+    if(c.bloc || c.id === "Departement") continue;   // département géré automatiquement + verrouillé
+    const v = lireChamp(c, "pm_"); if(v !== undefined) f[c.id] = v;
+    if(c.type === "datesclir" && colonneExiste(COL_DATES_CLIR)){
+      const z = document.getElementById("pm_"+c.id);
+      if(z) f[COL_DATES_CLIR] = lireDatesCLIR(z).map(dateVersTexte).join("\n");
+    }
+  }
+  return f;
+}
+function valeursControle(ctrl, idx){
+  const f = { [CONTROLES.refCol]: recordActuel.id };
+  // une entrave a sa Nature masquée : on la force pour ne pas la perdre
+  if(ctrl[CONTROLES.natureCol] === CONTROLES.natureEntrave) f[CONTROLES.natureCol] = CONTROLES.natureEntrave;
+  for(const c of CONTROLES.champs){ const v = lireChamp(c, "ctrl"+idx+"_"); if(v !== undefined) f[c.id] = v; }
+  return f;
+}
+function valeursLiee(p){
+  const g = LIEES.groupes.find(x=> x.type === p[LIEES.typeCol]); if(!g) return null;
+  const f = { [LIEES.refCol]: recordActuel.id, [LIEES.typeCol]: g.type };
+  g.cols.forEach(c=> f[c.id] = c.type==="bool" ? !!p[c.id] : (p[c.id]||""));
+  return f;
+}
+function figerBase(){                          // appelée juste après l'affichage d'une fiche venant de Grist
+  base = { fiche: valeursFiche(), ctrls:{}, liees:{} };
+  controlesActuels.forEach((ctrl, idx)=>{ if(ctrl.id) base.ctrls[ctrl.id] = valeursControle(ctrl, idx); });
+  if(lieesDispo){ capturerLiees(); lieesActuelles.forEach(p=>{ if(p.id){ const v = valeursLiee(p); if(v) base.liees[p.id] = v; } }); }
+}
+function differences(valeurs, reference){      // seulement les champs qui ont changé
+  const d = {};
+  for(const k in valeurs) if(!egal(valeurs[k], reference ? reference[k] : undefined)) d[k] = valeurs[k];
+  return d;
+}
+
 async function actionsEnregistrement(){
   let tableFiche = TABLE_ENTITE;
   try{ tableFiche = (await grist.selectedTable.getTableId()) || TABLE_ENTITE; }catch(e){}
-  const champsPM = {};
-  for(const sec of SECTIONS) for(const c of sec.champs){
-    if(c.bloc || c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
-    const v = lireChamp(c, "pm_"); if(v===undefined) continue;
-    // partage : n'envoyer que s'il a changé (seul le département d'origine a le droit de le modifier)
-    if(c.id==="Departements_partages" && memeListe(v, recordActuel[c.id])) continue;
-    champsPM[c.id]=v;
-  }
-  // toutes les dates de CLIR dans la colonne texte (la plus récente est déjà dans la colonne de date)
-  for(const sec of SECTIONS) for(const c of sec.champs){
-    if(c.type!=="datesclir" || !colonneExiste(COL_DATES_CLIR)) continue;
-    const z = document.getElementById("pm_"+c.id);
-    if(z) champsPM[COL_DATES_CLIR] = lireDatesCLIR(z).map(dateVersTexte).join("\n");
-  }
-  const actions = [["UpdateRecord", tableFiche, recordActuel.id, champsPM]];
+  const actions = [];
+  const champsFiche = differences(valeursFiche(), base.fiche);
+  if(Object.keys(champsFiche).length) actions.push(["UpdateRecord", tableFiche, recordActuel.id, champsFiche]);
   controlesActuels.forEach((ctrl, idx)=>{
-    const fields = { [CONTROLES.refCol]: recordActuel.id };
-    // une entrave a sa Nature masquée : on la force pour ne pas la perdre à l'enregistrement
-    if(ctrl[CONTROLES.natureCol] === CONTROLES.natureEntrave) fields[CONTROLES.natureCol] = CONTROLES.natureEntrave;
-    for(const c of CONTROLES.champs){
-      const v = lireChamp(c, "ctrl"+idx+"_"); if(v!==undefined) fields[c.id]=v;
-    }
-    if(ctrl.id) actions.push(["UpdateRecord", CONTROLES.table, ctrl.id, fields]);
-    else        actions.push(["AddRecord",    CONTROLES.table, null,     fields]);
+    const v = valeursControle(ctrl, idx);
+    if(!ctrl.id){ actions.push(["AddRecord", CONTROLES.table, null, v]); return; }
+    const d = differences(v, base.ctrls[ctrl.id]);
+    if(Object.keys(d).length) actions.push(["UpdateRecord", CONTROLES.table, ctrl.id, d]);
   });
   (window._ctrlOrigIds||[]).forEach(id=>{
     if(!controlesActuels.some(c=>c.id===id)) actions.push(["RemoveRecord", CONTROLES.table, id]);
@@ -624,6 +650,7 @@ async function enregistrer(auto){
   let actions;
   try{ actions = await actionsEnregistrement(); }
   catch(err){ return echecEnregistrement(err); }
+  if(!actions.length){ await apresEnregistrement(id, auto === true, false); return true; }   // rien n'a vraiment changé
   sauverBrouillon();                                   // copie de secours juste avant l'envoi
   const versionEnvoyee = versionSaisie;
   const envoi = grist.docApi.applyUserActions(actions);
@@ -697,20 +724,15 @@ function planifierBrouillon(){ clearTimeout(minuteurBrouillon); minuteurBrouillo
 function sauverBrouillon(){
   if(!recordActuel || !modifie) return;
   try{
-    const fiche = {};
-    for(const sec of SECTIONS) for(const c of sec.champs){
-      if(c.bloc || c.id === "Departement") continue;
-      const v = lireChamp(c, "pm_"); if(v !== undefined) fiche[c.id] = v;
-      if(c.type === "datesclir"){ const z = document.getElementById("pm_"+c.id); if(z) fiche[COL_DATES_CLIR] = lireDatesCLIR(z).map(dateVersTexte).join("\n"); }
-    }
     const controles = controlesActuels.map((ctrl, idx)=>{
-      const o = Object.assign({}, ctrl);
-      for(const c of CONTROLES.champs){ const v = lireChamp(c, "ctrl"+idx+"_"); if(v !== undefined) o[c.id] = v; }
-      return o;
+      const valeurs = valeursControle(ctrl, idx);
+      return { id: ctrl.id || null, valeurs, brut: Object.assign({}, ctrl, valeurs) };
     });
-    if(lieesDispo) capturerLiees();
+    let liees = null;
+    if(lieesDispo){ capturerLiees(); liees = lieesActuelles.map(p=> ({ id: p.id || null, valeurs: valeursLiee(p), brut: Object.assign({}, p) })); }
+    // on garde aussi la « base » : à la restauration, on saura ce que VOUS aviez changé
     localStorage.setItem(cleBrouillon(recordActuel.id), JSON.stringify({
-      quand: Date.now(), fiche, controles, liees: lieesDispo ? lieesActuelles : null }));
+      quand: Date.now(), base, fiche: valeursFiche(), controles, liees }));
   }catch(e){ console.warn("Copie de secours impossible :", e); }
 }
 function lireBrouillon(id){
@@ -737,14 +759,60 @@ function proposerBrouillon(){
     `<div class="brouillon" id="bandeauBrouillon">Une saisie non enregistrée du ${p(d.getDate())}/${p(d.getMonth()+1)} à ${p(d.getHours())}:${p(d.getMinutes())} ` +
     `a été retrouvée sur ce poste pour cette fiche. <button class="sec petit" type="button" id="btnRestaurer">Restaurer</button> ` +
     `<button class="sec petit" type="button" id="btnIgnorer">Ignorer</button></div>`);
-  el("btnRestaurer").onclick = ()=>{
-    recordActuel = Object.assign({}, recordActuel, b.fiche);
-    if(b.controles) controlesActuels = b.controles;
-    if(b.liees && lieesDispo) lieesActuelles = b.liees;
-    rendre(); marquerModifie();
-    etatMsg("Saisie restaurée : vérifiez-la puis cliquez sur Enregistrer.");
-  };
+  el("btnRestaurer").onclick = ()=> restaurerBrouillon(b);
   el("btnIgnorer").onclick = ()=>{ supprimerBrouillon(recordActuel.id); el("bandeauBrouillon").remove(); };
+}
+// Restauration « fusionnée » : on ne remet que ce que VOUS aviez changé. Si quelqu'un d'autre a modifié
+// le même champ entre-temps, on garde sa version enregistrée et on vous montre la vôtre pour que vous décidiez.
+function restaurerBrouillon(b){
+  const avant = b.base || { fiche:{}, ctrls:{}, liees:{} };
+  const conflits = [];
+  const champFiche = id=>{ for(const s of SECTIONS) for(const c of s.champs) if(c.id===id) return c; return null; };
+  const texte = (c, v)=>{ try{ return c ? valeurAffichee(c, v) : String(v==null ? "" : v); }catch(e){ return String(v); } };
+  const fusion = (moi, avantMoi, maintenant, cible, nomChamp, champDef)=>{
+    for(const k in moi){
+      if(egal(moi[k], avantMoi[k])) continue;                              // vous ne l'aviez pas changé
+      if(egal(maintenant[k], avantMoi[k]) || egal(maintenant[k], moi[k])) cible[k] = moi[k];
+      else conflits.push(nomChamp(k) + " (votre saisie : « " + texte(champDef(k), moi[k]) + " »)");
+    }
+  };
+  // la fiche
+  const appliques = {};
+  fusion(b.fiche, avant.fiche || {}, base.fiche, appliques,
+         k=> (champFiche(k)||{label: k===COL_DATES_CLIR ? "Dates de passage en CLIR" : k}).label, champFiche);
+  recordActuel = Object.assign({}, recordActuel, appliques);
+  // les contrôles et entraves
+  const champCtrl = k=> CONTROLES.champs.find(x=> x.id===k) || null;
+  const idsBrouillon = new Set((b.controles||[]).filter(c=> c.id).map(c=> c.id));
+  for(const c of (b.controles||[])){
+    if(!c.id){ controlesActuels.push(c.brut); continue; }                // ajouté par vous : on le rajoute
+    const cur = controlesActuels.find(x=> x.id===c.id);
+    if(!cur){ conflits.push("un contrôle ou une entrave supprimé entre-temps"); continue; }
+    const n = controlesActuels.indexOf(cur) + 1;
+    fusion(c.valeurs, (avant.ctrls||{})[c.id] || {}, base.ctrls[c.id] || {}, cur,
+           k=> "action n° " + n + " : " + ((champCtrl(k)||{label:k}).label), champCtrl);
+  }
+  Object.keys(avant.ctrls||{}).map(Number).forEach(id=>{                // supprimé par vous
+    if(!idsBrouillon.has(id)){ const i = controlesActuels.findIndex(x=> x.id===id); if(i >= 0) controlesActuels.splice(i, 1); }
+  });
+  // les personnes liées
+  if(b.liees && lieesDispo){
+    const idsL = new Set(b.liees.filter(x=> x.id).map(x=> x.id));
+    for(const l of b.liees){
+      if(!l.id){ lieesActuelles.push(l.brut); continue; }
+      const cur = lieesActuelles.find(x=> x.id===l.id);
+      if(!cur){ conflits.push("une personne liée supprimée entre-temps"); continue; }
+      fusion(l.valeurs || {}, (avant.liees||{})[l.id] || {}, base.liees[l.id] || {}, cur,
+             k=> "personne liée « " + (cur.Pseudonyme || "") + " » : " + k, ()=> null);
+    }
+    Object.keys(avant.liees||{}).map(Number).forEach(id=>{
+      if(!idsL.has(id)){ const i = lieesActuelles.findIndex(x=> x.id===id); if(i >= 0) lieesActuelles.splice(i, 1); }
+    });
+  }
+  rendre(); marquerModifie();
+  if(conflits.length) etatMsg("Saisie restaurée, sauf ce qui a été modifié entre-temps par quelqu'un d'autre (sa version a été gardée) : "
+                              + conflits.join(" ; ") + ". Vérifiez puis cliquez sur Enregistrer.", "err");
+  else etatMsg("Saisie restaurée : vérifiez-la puis cliquez sur Enregistrer.");
 }
 // fermeture de l'onglet avec des modifications : copie de secours + avertissement du navigateur
 window.addEventListener("pagehide", sauverBrouillon);
@@ -884,12 +952,11 @@ function actionsLiees(){
   capturerLiees();
   const actions = [];
   lieesActuelles.forEach(p=>{
-    const g = LIEES.groupes.find(x=>x.type===p[LIEES.typeCol]); if(!g) return;
-    const fields = { [LIEES.refCol]: recordActuel.id, [LIEES.typeCol]: g.type };
-    g.cols.forEach(c=> fields[c.id] = c.type==="bool" ? !!p[c.id] : (p[c.id]||""));
+    const v = valeursLiee(p); if(!v) return;
+    const g = LIEES.groupes.find(x=>x.type===p[LIEES.typeCol]);
     const videTotal = g.cols.every(c=> c.type==="bool" ? !p[c.id] : !String(p[c.id]||"").trim());
-    if(p.id) actions.push(["UpdateRecord", LIEES.table, p.id, fields]);
-    else if(!videTotal) actions.push(["AddRecord", LIEES.table, null, fields]);
+    if(p.id){ const d = differences(v, base.liees[p.id]); if(Object.keys(d).length) actions.push(["UpdateRecord", LIEES.table, p.id, d]); }
+    else if(!videTotal) actions.push(["AddRecord", LIEES.table, null, v]);
   });
   (window._lieesOrigIds||[]).forEach(id=>{
     if(!lieesActuelles.some(p=>p.id===id)) actions.push(["RemoveRecord", LIEES.table, id]);
@@ -1032,16 +1099,25 @@ async function chargerFiche(rec){
   try{ await chargerFicheSansGarde(rec); } finally { chargement = false; }
 }
 async function chargerFicheSansGarde(rec){
-  try{ const brut = await ligneComplete(rec.id); if(brut) rec = Object.assign({}, rec, brut); }catch(e){ console.warn(e); }
+  const debut = performance.now();
+  el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
+  etatMsg("Chargement\u2026");
+  // les trois lectures partent EN MÊME TEMPS : on attend un seul aller-retour avec le serveur au lieu de trois
+  const [brut] = await Promise.all([
+    ligneComplete(rec.id).catch(e=>{ console.warn(e); return null; }),
+    chargerControles(rec.id),
+    chargerLiees(rec.id),
+  ]);
+  if(brut) rec = Object.assign({}, rec, brut);
   recordActuel = rec;
   el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
-  await chargerControles(rec.id);
   window._ctrlOrigIds = controlesActuels.map(c=>c.id);
-  await chargerLiees(rec.id);
   window._lieesOrigIds = lieesActuelles.map(p=>p.id);
+  console.info("[Fiche] chargée en", Math.round(performance.now() - debut), "ms");
   modifie=false; el("btnEnregistrer").disabled=true; el("btnEnregistrer").classList.remove("a-enregistrer"); el("btnAnnuler").disabled=true; el("etat").textContent="";
   el("btnSupprimer").disabled=false;
   rendre();
+  figerBase();          // la fiche telle qu'elle est dans Grist : sert à n'envoyer que vos changements
   proposerBrouillon();
 }
 grist.ready({ requiredAccess:"full" });
