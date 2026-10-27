@@ -40,12 +40,19 @@
   .barre{position:sticky; top:0; z-index:5; background:#fff; padding:8px 0 12px;
      border-bottom:1px solid var(--bord); display:flex; align-items:center; gap:12px;}
   .titre-fiche{font-size:16px; font-weight:600; flex:1;}
+  /* enregistrement : bouton orange tant que des modifications ne sont pas enregistrées ; bandeau de copie de secours */
+  #btnEnregistrer.a-enregistrer{background:#C2410C; border-color:#C2410C; color:#fff;}
+  .brouillon{background:#FCEBD9; color:#7A3A00; border:1px solid #E8A15C; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:13px;}
+  .brouillon button{margin:0 0 0 6px;}
   button{font:inherit; cursor:pointer; border:none; border-radius:6px; padding:8px 16px;
      background:var(--bleu); color:#fff; font-weight:500;}
   button.sec{background:var(--gris); color:var(--txt); border:1px solid var(--bord);}
   button:disabled{opacity:.5; cursor:default;}
   button.danger{background:#fff; color:#b42318; border:1px solid #f1b8b2;}
   .etat{font-size:13px; color:var(--muet);}
+  /* message d'état sur sa propre ligne, sous les boutons : sa longueur ne fait plus bouger les boutons */
+  .barre{flex-wrap:wrap;}
+  .barre .etat{order:10; flex-basis:100%; min-height:18px; margin-top:-6px;}
   .etat.ok{color:var(--vert-txt);} .etat.err{color:#b42318;}
   .controle{border:1px solid var(--bord); border-radius:8px; padding:12px; margin-bottom:12px; background:var(--gris);}
   .controle .grille{background:transparent;}
@@ -433,8 +440,11 @@ function rendre(){
   rendreControles();
   el("btnAddCtrl").onclick = ajouterControle;
   el("btnAddEntrave").onclick = ajouterEntrave;
+  if(rendre.ecouteurs) return;        // #contenu ne change pas : ses écouteurs ne sont posés qu'une fois
+  rendre.ecouteurs = true;
   el("contenu").addEventListener("input", ()=>marquerModifie());
   el("contenu").addEventListener("change", e=>{
+    if(chargement) return;
     if(e.target.id && e.target.id.match(/^ctrl\d+_(Nature_du_controle_entrave|Categorie|Type_controle)$/)){ capturerControles(); rendreControles(true); }
     marquerModifie();
   });
@@ -514,48 +524,192 @@ function ajouterEntrave(){
   vide[CONTROLES.natureCol] = CONTROLES.natureEntrave;
   controlesActuels.push(vide); marquerModifie(); rendreControles();
 }
-function marquerModifie(){ modifie=true; el("btnEnregistrer").disabled=false; el("btnAnnuler").disabled=false; el("etat").textContent=""; }
-async function enregistrer(){
-  if(!recordActuel) return;
-  el("btnEnregistrer").disabled = true;
-  el("etat").textContent = "Enregistrement\u2026"; el("etat").className="etat";
-  try{
-    const champsPM = {};
-    for(const sec of SECTIONS) for(const c of sec.champs){
-      if(c.bloc || c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
-      const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
-    }
-    // toutes les dates de CLIR dans la colonne texte (la plus récente est déjà dans la colonne de date)
-    for(const sec of SECTIONS) for(const c of sec.champs){
-      if(c.type!=="datesclir" || !colonneExiste(COL_DATES_CLIR)) continue;
-      const z = document.getElementById("pm_"+c.id);
-      if(z) champsPM[COL_DATES_CLIR] = lireDatesCLIR(z).map(dateVersTexte).join("\n");
-    }
-    await grist.selectedTable.update({ id: recordActuel.id, fields: champsPM });
-    const actions = [];
-    controlesActuels.forEach((ctrl, idx)=>{
-      const fields = { [CONTROLES.refCol]: recordActuel.id };
-      // une entrave a sa Nature masquée : on la force pour ne pas la perdre à l'enregistrement
-      if(ctrl[CONTROLES.natureCol] === CONTROLES.natureEntrave) fields[CONTROLES.natureCol] = CONTROLES.natureEntrave;
-      for(const c of CONTROLES.champs){
-        const v = lireChamp(c, "ctrl"+idx+"_"); if(v!==undefined) fields[c.id]=v;
-      }
-      if(ctrl.id) actions.push(["UpdateRecord", CONTROLES.table, ctrl.id, fields]);
-      else        actions.push(["AddRecord",    CONTROLES.table, null,     fields]);
-    });
-    (window._ctrlOrigIds||[]).forEach(id=>{
-      if(!controlesActuels.some(c=>c.id===id)) actions.push(["RemoveRecord", CONTROLES.table, id]);
-    });
-    actions.push(...actionsLiees());
-    if(actions.length) await grist.docApi.applyUserActions(actions);
-    modifie=false; el("btnAnnuler").disabled=true;
-    el("etat").textContent = "Enregistr\u00e9 \u2713"; el("etat").className="etat ok";
-  }catch(err){
-    console.error(err);
-    el("etat").textContent = "Erreur : "+(err.message||err); el("etat").className="etat err";
-    el("btnEnregistrer").disabled=false;
+let chargement = false;     // pendant l'affichage d'une fiche, les événements du navigateur ne comptent pas comme des saisies
+function marquerModifie(){ if(chargement) return; modifie=true; versionSaisie++; el("btnEnregistrer").disabled=false; el("btnEnregistrer").classList.add("a-enregistrer"); el("btnAnnuler").disabled=false; etatMsg("Modifications non enregistrées"); planifierBrouillon(); }
+/* ---------- Enregistrement : tout ou rien, automatique au changement de fiche, copie de secours ---------- */
+const DELAI_MAX = 15000;          // au-delà (ms), on considère que Grist ne répond pas (connexion perdue ?)
+const BROUILLON = "brouillon_" + TABLE_ENTITE + "_";   // copie de secours dans ce navigateur, une par fiche
+const BROUILLON_JOURS = 7;        // une copie de secours plus ancienne est effacée
+let envoiEnAttente = null;        // enregistrement envoyé à Grist, en attente de réponse
+let minuteurBrouillon = null;
+let versionSaisie = 0;            // augmente à chaque modification : sait si on a encore saisi pendant un envoi
+
+function heure(){ const d = new Date(); return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
+function etatMsg(t, cls){ el("etat").textContent = t; el("etat").className = "etat" + (cls ? " " + cls : ""); }
+
+// Toutes les modifications (fiche, contrôles, entraves, personnes liées) en UNE liste d'actions :
+// Grist les applique toutes, ou aucune s'il y a une erreur.
+async function actionsEnregistrement(){
+  let tableFiche = TABLE_ENTITE;
+  try{ tableFiche = (await grist.selectedTable.getTableId()) || TABLE_ENTITE; }catch(e){}
+  const champsPM = {};
+  for(const sec of SECTIONS) for(const c of sec.champs){
+    if(c.bloc || c.id === "Departement") continue;   // département géré automatiquement + verrouillé : ne pas l'enregistrer
+    const v = lireChamp(c, "pm_"); if(v!==undefined) champsPM[c.id]=v;
   }
+  // toutes les dates de CLIR dans la colonne texte (la plus récente est déjà dans la colonne de date)
+  for(const sec of SECTIONS) for(const c of sec.champs){
+    if(c.type!=="datesclir" || !colonneExiste(COL_DATES_CLIR)) continue;
+    const z = document.getElementById("pm_"+c.id);
+    if(z) champsPM[COL_DATES_CLIR] = lireDatesCLIR(z).map(dateVersTexte).join("\n");
+  }
+  const actions = [["UpdateRecord", tableFiche, recordActuel.id, champsPM]];
+  controlesActuels.forEach((ctrl, idx)=>{
+    const fields = { [CONTROLES.refCol]: recordActuel.id };
+    // une entrave a sa Nature masquée : on la force pour ne pas la perdre à l'enregistrement
+    if(ctrl[CONTROLES.natureCol] === CONTROLES.natureEntrave) fields[CONTROLES.natureCol] = CONTROLES.natureEntrave;
+    for(const c of CONTROLES.champs){
+      const v = lireChamp(c, "ctrl"+idx+"_"); if(v!==undefined) fields[c.id]=v;
+    }
+    if(ctrl.id) actions.push(["UpdateRecord", CONTROLES.table, ctrl.id, fields]);
+    else        actions.push(["AddRecord",    CONTROLES.table, null,     fields]);
+  });
+  (window._ctrlOrigIds||[]).forEach(id=>{
+    if(!controlesActuels.some(c=>c.id===id)) actions.push(["RemoveRecord", CONTROLES.table, id]);
+  });
+  actions.push(...actionsLiees());
+  return actions;
 }
+
+// auto = true : enregistrement automatique (changement de fiche, nouvelle fiche).
+// Renvoie true si c'est enregistré, false sinon (les saisies restent alors à l'écran).
+async function enregistrer(auto){
+  if(!recordActuel) return true;
+  if(envoiEnAttente){
+    etatMsg("Un enregistrement attend encore la réponse de Grist : patientez, vos saisies sont conservées.", "err");
+    return false;
+  }
+  const id = recordActuel.id;
+  el("btnEnregistrer").disabled = true;
+  etatMsg(auto === true ? "Enregistrement automatique de la fiche…" : "Enregistrement…");
+  let actions;
+  try{ actions = await actionsEnregistrement(); }
+  catch(err){ return echecEnregistrement(err); }
+  sauverBrouillon();                                   // copie de secours juste avant l'envoi
+  const versionEnvoyee = versionSaisie;
+  const envoi = grist.docApi.applyUserActions(actions);
+  envoiEnAttente = envoi;
+  const minuteur = new Promise(r=> setTimeout(()=> r("delai"), DELAI_MAX));
+  const resultat = await Promise.race([envoi.then(()=> "ok", e=> ({ erreur: e })), minuteur]);
+  if(resultat === "delai"){
+    // pas de réponse : on n'abandonne pas l'envoi, on attend sa réponse en arrière-plan
+    etatMsg("Grist ne répond pas (connexion perdue ?). Vos saisies sont conservées sur ce poste ; " +
+            "l'enregistrement sera confirmé dès que la connexion revient.", "err");
+    envoi.then(()=>{ envoiEnAttente = null; return apresEnregistrement(id, false, true, versionEnvoyee); },
+               e=>{ envoiEnAttente = null; echecEnregistrement(e); });
+    return false;
+  }
+  envoiEnAttente = null;
+  if(resultat !== "ok") return echecEnregistrement(resultat.erreur);
+  await apresEnregistrement(id, auto === true, false);
+  return true;
+}
+async function apresEnregistrement(id, auto, tardif, versionEnvoyee){
+  if(tardif && recordActuel && recordActuel.id === id && versionSaisie !== versionEnvoyee){
+    // réponse arrivée tard, et on a encore modifié la fiche entre-temps : on garde les nouvelles saisies
+    el("btnEnregistrer").disabled = false;
+    etatMsg("Enregistrement précédent confirmé ✓. Vos dernières modifications ne sont pas encore enregistrées : rechargez la fiche avant d'enregistrer de nouveaux contrôles.", "err");
+    return;
+  }
+  supprimerBrouillon(id);
+  if(recordActuel && recordActuel.id === id){
+    modifie = false; el("btnEnregistrer").classList.remove("a-enregistrer");
+    // relit la fiche : les contrôles et personnes liées ajoutés reçoivent leur identifiant
+    if(!auto) await chargerFiche({ id });
+  }
+  etatMsg((tardif ? "Enregistrement confirmé" : "Enregistré") + " ✓ à " + heure(), "ok");
+}
+function echecEnregistrement(err){
+  console.error(err);
+  etatMsg("Erreur d'enregistrement : " + ((err && err.message) || err) +
+          ". Vos saisies sont toujours là : corrigez si besoin puis cliquez sur Enregistrer.", "err");
+  el("btnEnregistrer").disabled = false;
+  return false;
+}
+
+// Changement de ligne dans le tableau : la fiche en cours est enregistrée avant d'afficher la suivante.
+// Si ça échoue, on revient sur la fiche non enregistrée, avec toutes ses saisies.
+let fileFiches = Promise.resolve();
+function surNouvelleFiche(record){
+  fileFiches = fileFiches.then(()=> traiterFiche(record)).catch(e=> console.error(e));
+}
+async function traiterFiche(record){
+  if(!record) return;
+  if(recordActuel && record.id === recordActuel.id){
+    if(modifie) return;              // même fiche en cours de saisie : on ne touche pas aux saisies
+    return chargerFiche(record);
+  }
+  let autoOk = false;
+  if(recordActuel && modifie){
+    const ancien = recordActuel.id;
+    if(!(await enregistrer(true))){
+      try{ await grist.setCursorPos({ rowId: ancien }); }catch(e){}
+      return;
+    }
+    autoOk = true;
+  }
+  await chargerFiche(record);
+  if(autoOk) etatMsg("Fiche précédente enregistrée automatiquement ✓ à " + heure(), "ok");
+}
+
+// Copie de secours : gardée dans ce navigateur pendant la saisie, effacée dès que l'enregistrement réussit
+function cleBrouillon(id){ return BROUILLON + id; }
+function planifierBrouillon(){ clearTimeout(minuteurBrouillon); minuteurBrouillon = setTimeout(sauverBrouillon, 800); }
+function sauverBrouillon(){
+  if(!recordActuel || !modifie) return;
+  try{
+    const fiche = {};
+    for(const sec of SECTIONS) for(const c of sec.champs){
+      if(c.bloc || c.id === "Departement") continue;
+      const v = lireChamp(c, "pm_"); if(v !== undefined) fiche[c.id] = v;
+      if(c.type === "datesclir"){ const z = document.getElementById("pm_"+c.id); if(z) fiche[COL_DATES_CLIR] = lireDatesCLIR(z).map(dateVersTexte).join("\n"); }
+    }
+    const controles = controlesActuels.map((ctrl, idx)=>{
+      const o = Object.assign({}, ctrl);
+      for(const c of CONTROLES.champs){ const v = lireChamp(c, "ctrl"+idx+"_"); if(v !== undefined) o[c.id] = v; }
+      return o;
+    });
+    if(lieesDispo) capturerLiees();
+    localStorage.setItem(cleBrouillon(recordActuel.id), JSON.stringify({
+      quand: Date.now(), fiche, controles, liees: lieesDispo ? lieesActuelles : null }));
+  }catch(e){ console.warn("Copie de secours impossible :", e); }
+}
+function lireBrouillon(id){
+  try{
+    const b = JSON.parse(localStorage.getItem(cleBrouillon(id)) || "null");
+    if(b && Date.now() - b.quand < BROUILLON_JOURS*864e5) return b;
+    if(b) localStorage.removeItem(cleBrouillon(id));
+  }catch(e){}
+  return null;
+}
+function supprimerBrouillon(id){ try{ localStorage.removeItem(cleBrouillon(id)); }catch(e){} }
+function purgerBrouillons(){
+  try{
+    Object.keys(localStorage).filter(k=> k.startsWith(BROUILLON)).forEach(k=>{
+      const b = JSON.parse(localStorage.getItem(k) || "null");
+      if(!b || Date.now() - b.quand >= BROUILLON_JOURS*864e5) localStorage.removeItem(k);
+    });
+  }catch(e){}
+}
+function proposerBrouillon(){
+  const b = recordActuel && lireBrouillon(recordActuel.id); if(!b) return;
+  const d = new Date(b.quand), p = n=> String(n).padStart(2,"0");
+  el("contenu").insertAdjacentHTML("afterbegin",
+    `<div class="brouillon" id="bandeauBrouillon">Une saisie non enregistrée du ${p(d.getDate())}/${p(d.getMonth()+1)} à ${p(d.getHours())}:${p(d.getMinutes())} ` +
+    `a été retrouvée sur ce poste pour cette fiche. <button class="sec petit" type="button" id="btnRestaurer">Restaurer</button> ` +
+    `<button class="sec petit" type="button" id="btnIgnorer">Ignorer</button></div>`);
+  el("btnRestaurer").onclick = ()=>{
+    recordActuel = Object.assign({}, recordActuel, b.fiche);
+    if(b.controles) controlesActuels = b.controles;
+    if(b.liees && lieesDispo) lieesActuelles = b.liees;
+    rendre(); marquerModifie();
+    etatMsg("Saisie restaurée : vérifiez-la puis cliquez sur Enregistrer.");
+  };
+  el("btnIgnorer").onclick = ()=>{ supprimerBrouillon(recordActuel.id); el("bandeauBrouillon").remove(); };
+}
+// fermeture de l'onglet avec des modifications : copie de secours + avertissement du navigateur
+window.addEventListener("pagehide", sauverBrouillon);
+window.addEventListener("beforeunload", e=>{ if(modifie){ sauverBrouillon(); e.preventDefault(); e.returnValue = ""; } });
 function valeurAffichee(champ, valeur){
   if(champ.type==="date"){ const d=dateVersInput(valeur); return d ? d.split("-").reverse().join("/") : ""; }
   if(champ.type==="reflistctrl"){
@@ -752,7 +906,7 @@ el("contenu").addEventListener("click", e=>{
 });
 el("btnImprimer").onclick = imprimerFiche;
 el("btnEnregistrer").onclick = enregistrer;
-el("btnAnnuler").onclick = ()=>{ if(recordActuel) chargerFiche(recordActuel); };
+el("btnAnnuler").onclick = ()=>{ if(recordActuel){ supprimerBrouillon(recordActuel.id); modifie = false; chargerFiche(recordActuel); } };
 el("btnNouvelle").onclick = nouvelleFiche;
 el("btnSupprimer").onclick = supprimerFiche;
 // Supprime la fiche ET ce qui lui est rattaché (contrôles/entraves, personnes liées),
@@ -774,6 +928,7 @@ async function supprimerFiche(){
     if(idsLiees.length) actions.push(["BulkRemoveRecord", LIEES.table, idsLiees]);
     actions.push(["RemoveRecord", tableFiche, recordActuel.id]);
     await grist.docApi.applyUserActions(actions);   // une seule action : annulable d'un coup avec « Annuler » dans Grist
+    supprimerBrouillon(recordActuel.id);
     recordActuel = null; modifie = false;
     el("titre").textContent = "Aucune fiche sélectionnée";
     el("btnEnregistrer").disabled = true; el("btnAnnuler").disabled = true;
@@ -786,7 +941,7 @@ async function supprimerFiche(){
   }
 }
 async function nouvelleFiche(){
-  if(modifie && !confirm("Des modifications ne sont pas enregistrées sur la fiche actuelle. Les abandonner et créer une nouvelle PP ?")) return;
+  if(modifie && !(await enregistrer(true))) return;   // la fiche en cours est d'abord enregistrée
   const btn = el("btnNouvelle");
   btn.disabled = true;
   el("etat").textContent = "Création…"; el("etat").className="etat";
@@ -817,6 +972,10 @@ async function ligneComplete(id){
   const o = {}; Object.keys(t).forEach(c=>{ o[c] = t[c][i]; }); return o;
 }
 async function chargerFiche(rec){
+  chargement = true;
+  try{ await chargerFicheSansGarde(rec); } finally { chargement = false; }
+}
+async function chargerFicheSansGarde(rec){
   try{ const brut = await ligneComplete(rec.id); if(brut) rec = Object.assign({}, rec, brut); }catch(e){ console.warn(e); }
   recordActuel = rec;
   el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
@@ -824,13 +983,15 @@ async function chargerFiche(rec){
   window._ctrlOrigIds = controlesActuels.map(c=>c.id);
   await chargerLiees(rec.id);
   window._lieesOrigIds = lieesActuelles.map(p=>p.id);
-  modifie=false; el("btnEnregistrer").disabled=true; el("btnAnnuler").disabled=true; el("etat").textContent="";
+  modifie=false; el("btnEnregistrer").disabled=true; el("btnEnregistrer").classList.remove("a-enregistrer"); el("btnAnnuler").disabled=true; el("etat").textContent="";
   el("btnSupprimer").disabled=false;
   rendre();
+  proposerBrouillon();
 }
 grist.ready({ requiredAccess:"full" });
 Promise.all([chargerChoix(), chargerTypes(), chargerCategories()]).then(()=>{
-  grist.onRecord(async (record)=>{ await chargerFiche(record); });
+  purgerBrouillons();
+  grist.onRecord(surNouvelleFiche);
 }).catch(e=>{ el("contenu").innerHTML = `<p class="etat err">Erreur d'initialisation : ${esc(e.message||e)}</p>`; });
 document.addEventListener('mousedown', function(e) {
   const option = e.target;
