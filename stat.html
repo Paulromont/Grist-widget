@@ -400,9 +400,15 @@ function rendre(){
     + grille(barresH("Saisines du procureur de la République", SAIS, parType(entr, SAIS), {couleur:PALETTE[6]}));
   h += `<h4>2.2.2 Parmi les contraintes administratives sur individu, détails des mesures prises</h4>`
     + grille(barresH("Détails des mesures prises à l'encontre de personnes physiques", typesDe(cCont), parType(entr, typesDe(cCont)), {couleur:PALETTE[6]}));
-  
+
+  /* ===== 3 ===== */
+  h += `<h2 class="sec">3. Services mobilisés dans la mise en œuvre des actions de contrôle et d'entrave</h2>`;
+  const SERV = ch("Controles.Service_menant");
+  h += grille(barresV("Services menant dans la mise en œuvre des actions de contrôle et d'entrave", SERV, compter(C, c=>c.Service_menant, SERV), {couleur:PALETTE[5]}),
+              barresV("Services partenaires dans la mise en œuvre des actions de contrôle et d'entrave", SERV, compter(C, c=>c.Service_partenaire_1, SERV), {couleur:PALETTE[5]}));
+
   el("rapport").innerHTML = h;
-  rendreRepliable(el("rapport"), "h2.sec");   // parties 1 à 4
+  rendreRepliable(el("rapport"), "h2.sec");   // parties 1 à 3
   rendreRepliable(el("rapport"), "h3");       // sous-parties (1.1, 1.2…)
 }
 
