@@ -127,9 +127,11 @@ const ENTITE_PM = [
   {id:"Date_creation",label:"Date de création",type:"date"},
   {id:"Numero_RNA",label:"Numéro RNA",type:"text"},
   {id:"Numero_SIRET",label:"Numéro SIRET",type:"text"},
+  {id:"Commentaire_identite",label:"Commentaire (identité)",type:"text"},
   {id:"Activite_presentiel_ligne",label:"Activité présentiel/en ligne",type:"text"},
   {id:"Domaine_declare_1",label:"Domaine(s) d'activité déclaré(s)",type:"list"},
   {id:"Domaine_reel_2",label:"Domaine(s) d'activité réel(s)",type:"list"},
+  {id:"Commentaire_domaine_activite",label:"Commentaire (domaines d'activité)",type:"text"},
   {id:"Date_signalement",label:"Date du signalement",type:"date"},
   {id:"Service_signalant",label:"Service signalant",type:"text"},
   {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
@@ -138,8 +140,6 @@ const ENTITE_PM = [
   {id:"Personnels_benevoles",label:"Personnel(s) / bénévole(s)",type:"text"},
   {id:"_liees_Physique",label:"Personne(s) physique(s) liée(s)",type:"liees",ref:"PM",groupe:"Physique"},
   {id:"_liees_Morale",label:"Personne(s) morale(s) liée(s)",type:"liees",ref:"PM",groupe:"Morale"},
-  {id:"Points_vigilance",label:"Point(s) de vigilance",type:"text"},
-  {id:"Projet_controle",label:"Projet(s) de contrôle",type:"text"},
   {id:"Champs_libre",label:"Champ libre",type:"text"},
 ];
 
@@ -156,14 +156,13 @@ const ENTITE_PP = [
   {id:"Departement",label:"Département",type:"text"},
   {id:"Ville",label:"Ville",type:"text"},
   {id:"Activite_s_justfiant_le_suivi",label:"Activité(s) justifiant le suivi",type:"list"},
+  {id:"Commentaire_identite",label:"Commentaire (identité)",type:"text"},
   {id:"Date_signalement",label:"Date du signalement",type:"date"},
   {id:"Service_signalant",label:"Service signalant",type:"text"},
   {id:"Contenu_signalement",label:"Contenu du signalement",type:"text"},
   {id:"commentaires",label:"Commentaire(s)",type:"text"},
   {id:"_liees_Physique",label:"Personne(s) physique(s) liée(s)",type:"liees",ref:"PP",groupe:"Physique"},
   {id:"_liees_Morale",label:"Personne(s) morale(s) liée(s)",type:"liees",ref:"PP",groupe:"Morale"},
-  {id:"Points_vigilance",label:"Point(s) de vigilance",type:"text"},
-  {id:"Projet_de_controle",label:"Projet(s) de contrôle",type:"text"},
   {id:"Champs_libre",label:"Champ libre",type:"text"},
 ];
 
@@ -559,13 +558,13 @@ function caseHtml(groupe, id, label, coche){
 
 // Colonnes cochées à l'ouverture du panneau (toujours les mêmes)
 const DEFAUT = {
-  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre","Autres_adresses","Date_creation","Numero_RNA","Numero_SIRET","Activite_presentiel_ligne","Date_signalement","Service_signalant","Contenu_signalement","Commentaire_signalement","Dirigeants","Personnels_benevoles","_liees_Physique","_liees_Morale","Departement"],
-  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre","Nationalite","Departement","Ville","Date_signalement","Service_signalant","Contenu_signalement","_liees_Physique","_liees_Morale"],
+  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Champs_libre","Autres_adresses","Date_creation","Numero_RNA","Numero_SIRET","Activite_presentiel_ligne","Date_signalement","Service_signalant","Contenu_signalement","Commentaire_signalement","Dirigeants","Personnels_benevoles","_liees_Physique","_liees_Morale","Departement"],
+  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Champs_libre","Nationalite","Departement","Ville","Date_signalement","Service_signalant","Contenu_signalement","_liees_Physique","_liees_Morale"],
   ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine","Duree_jours","Motif_ERP","Montant_notifie","Montant_recouvre","Montant_applicable","Commentaires"]
 };
   const ALEGE = {
-  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Points_vigilance","Projet_controle","Champs_libre"],
-  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Points_vigilance","Projet_de_controle","Champs_libre"],
+  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Champs_libre"],
+  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Champs_libre"],
   ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine"]
 };
   
