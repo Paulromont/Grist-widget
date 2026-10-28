@@ -43,6 +43,14 @@
   .periode select{font:inherit; color:#2E2E2E; background:#fff; padding:5px 8px; border:1px solid #D8DCE1; border-radius:6px;}
   .periode .aide{color:#6B7280; font-size:12px; flex-basis:100%;}
   .bas{display:flex; align-items:center; gap:10px; border-top:1px solid #D8DCE1; padding-top:12px;}
+  /* légende du code couleur des boutons */
+  .legende{display:flex; flex-direction:column; gap:5px; margin-top:12px; font-size:12px; color:#6B7280;}
+  .legende span{display:flex; align-items:center; gap:6px;}
+  .pastille{display:inline-block; width:22px; height:12px; border-radius:3px; flex-shrink:0;}
+  .pastille.plein{background:#1F4E79;}
+  .pastille.gris{background:#F4F5F7; border:1px solid #D8DCE1;}
+  .pastille.contour{background:#fff; border:1px solid #1F4E79;}
+  .legende b{color:#2E2E2E; font-weight:600;}
 </style>
 </head>
 <body>
@@ -63,6 +71,10 @@
     <button id="btnPP">Export personne physique</button>
     <button class="sec" id="btnTout">Exporter tout (morale et physique)</button>
     <button class="perso" id="btnPerso">Export personnalisé…</button>
+  </div>
+  <div class="legende">
+    <span><i class="pastille contour"></i> <b>Export mis en forme</b> — tableau lisible (bordures, texte renvoyé à la ligne), prêt à imprimer en A3 paysage</span>
+    <span><i class="pastille plein"></i><i class="pastille gris"></i> <b>Export brut</b> — une colonne par champ et par action, pour filtrer ou rechercher par mot-clé dans Excel</span>
   </div>
   <div class="etat" id="etat"></div>
 
