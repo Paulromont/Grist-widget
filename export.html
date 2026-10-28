@@ -16,12 +16,14 @@
      background:#1F4E79; color:#fff; font-weight:500; font-size:14px;}
   button.sec{background:#F4F5F7; color:#2E2E2E; border:1px solid #D8DCE1;}
   button:disabled{opacity:.5; cursor:default;}
-  .etat{margin-top:14px; font-size:13px; color:#6B7280;}
+  .etat{margin:14px 0 18px; font-size:13px; color:#6B7280;}
   .etat.ok{color:#3B6D11;} .etat.err{color:#b42318;}
   html{color-scheme:light !important;}
+  /* la page occupe toute la hauteur du widget, pour pouvoir caler la légende en bas */
+  body{min-height:100vh; box-sizing:border-box; display:flex; flex-direction:column;}
   button.perso{background:#fff; color:#1F4E79; border:1px solid #1F4E79;}
   /* panneau d'export personnalisé */
-  #panneau{display:none; margin-top:18px; border:1px solid #D8DCE1; border-radius:8px; padding:14px 16px; background:#fff;}
+  #panneau{display:none; margin:0 0 18px; border:1px solid #D8DCE1; border-radius:8px; padding:14px 16px; background:#fff;}
   #panneau.ouvert{display:block;}
   #panneau h2{font-size:14px; color:#1F4E79; margin:0 0 10px;}
   .etape{margin-bottom:16px;}
@@ -44,7 +46,7 @@
   .periode .aide{color:#6B7280; font-size:12px; flex-basis:100%;}
   .bas{display:flex; align-items:center; gap:10px; border-top:1px solid #D8DCE1; padding-top:12px;}
   /* légende du code couleur des boutons */
-  .legende{display:flex; flex-direction:column; gap:5px; margin-top:18px; padding-top:10px; border-top:1px solid #D8DCE1; font-size:12px; color:#6B7280;}
+  .legende{display:flex; flex-direction:column; gap:5px; margin-top:auto; padding-top:10px; border-top:1px solid #D8DCE1; font-size:12px; color:#6B7280;}
   .legende span{display:flex; align-items:center; gap:6px;}
   .pastille{display:inline-block; width:22px; height:12px; border-radius:3px; flex-shrink:0;}
   .pastille.plein{background:#1F4E79;}
