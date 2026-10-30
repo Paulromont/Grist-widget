@@ -56,8 +56,18 @@
   .champ label{font-size:12px; color:var(--muet);}
   .cases{display:grid; grid-template-columns:repeat(3,1fr); gap:4px 10px;}
   .cases label{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--txt); cursor:pointer;}
-  .actions{display:flex; gap:8px; justify-content:flex-end; margin-top:6px;}
+  .actions{display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:6px;}
   .actions .gauche{margin-right:auto;}
+  button:disabled{opacity:.6; cursor:wait;}
+  /* compte rendu : pièces jointes de la séance */
+  .pj{list-style:none; margin:0 0 6px; padding:0; display:flex; flex-direction:column; gap:4px;}
+  .pj li{display:flex; align-items:center; gap:8px; padding:4px 8px; border:1px solid var(--bord); border-radius:6px; background:var(--gris);}
+  .pj li .nom{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pj li button{padding:1px 8px; font-size:12px;}
+  .pj li.nouv .nom::after{content:" — envoyé à l'enregistrement"; color:var(--muet); font-size:11px;}
+  .pj li.vide{background:none; border:none; padding:0; color:var(--muet);}
+  .note{color:var(--muet); font-size:11px;}
+  #m-etat{color:var(--muet); font-size:12px;}
   @media print{
     .barre button, .barre select, #etat, .aide{display:none;}
     body{padding:0;}
@@ -97,10 +107,15 @@
   <div class="modale">
     <h3 id="m-titre">Séance</h3>
     <div class="champ"><label for="m-date">Date</label><input type="date" id="m-date"></div>
-    <div class="champ"><label for="m-type">Type</label><select id="m-type"></select></div>
     <div class="champ"><label>Partenaires présents</label><div class="cases" id="m-parts"></div></div>
+    <div class="champ" id="m-cr" style="display:none"><label>Compte rendu (pièces jointes)</label>
+      <ul class="pj" id="m-pj"></ul>
+      <div><button type="button" id="m-joindre">+ Joindre un fichier</button> <span class="note" id="m-note-pj"></span></div>
+      <input type="file" id="m-fichier" multiple style="display:none">
+    </div>
     <div class="actions">
       <button class="danger gauche" id="m-suppr">Supprimer</button>
+      <span id="m-etat"></span>
       <button id="m-annuler">Annuler</button>
       <button class="prim" id="m-ok">Enregistrer</button>
     </div>
@@ -114,9 +129,12 @@ let TABLE_USERS = "Utilisateurs"; // table des utilisateurs, détectée au déma
 let COL_DEPT = "Departement";    // colonne Département de la table des séances
 let COL_DEPT_USERS = "Departement"; // colonne Département de la table des utilisateurs
 let COL_PART = "Partenaires";    // remplacé au démarrage par l'identifiant réel de la colonne « Partenaires présents »
+let COL_CR = null;               // colonne « Pièces jointes » du compte rendu : « Compte_rendu » en priorité,
+                                 // sinon la première colonne Pièces jointes de la table ; aucune = fonction masquée
+const PJ_MAX_MO = 20;            // taille maximale d'un fichier joint (Mo)
+const PJ_EXTENSIONS = ["pdf","doc","docx","odt","rtf","txt","xls","xlsx","ods","ppt","pptx","odp","jpg","jpeg","png"];
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 // Valeurs de secours si les listes de choix des colonnes ne peuvent pas être lues
-let TYPES = ["Plénière","Restreinte","Scolaire","Lieux de culte","Sport","Autres"];
 let PARTENAIRES = ["SDIS","PN","GN","Préfecture","DGFIP","DDETS","DDPP","DGCCRF","Douanes","ARS","DLPAJ",
   "Mairie","Conseil départemental","Parquet","Urssaf","CAF","France Travail","SDJES","DSDEN","Autres"];
 const LIGNES_MIN = 5;   // nombre minimal de cases par mois
@@ -127,6 +145,12 @@ let depts = [];         // départements que l'utilisateur peut afficher
 let deptChoisi = "";
 let annee = new Date().getFullYear();
 let enCours = null;     // séance en cours d'édition ({id} ou {mois} pour une nouvelle)
+let pjOrigine = [];     // pièces jointes de la séance à l'ouverture de la fenêtre (identifiants Grist)
+let pjGardees = [];     // pièces jointes conservées (+ celles déjà envoyées pendant cette édition)
+let pjNouvelles = [];   // fichiers choisis, pas encore envoyés
+let sauvegardeEnCours = false;
+const INFOS_PJ = {};    // identifiant -> {fileName, …}
+const DEMANDES_PJ = {}; // identifiant -> requête en cours (évite les doublons)
 
 const el = id => document.getElementById(id);
 function etat(msg, err){ el("etat").textContent = msg||""; el("etat").className = err ? "err" : ""; }
@@ -153,15 +177,16 @@ async function lireChoix(){
     if(idx>=0) TABLE = tables.tableId[idx];
     const ref = tables.id[idx];
     const norm = v => String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
-    const candidats = [];
+    const candidats = [], colsPJ = [];
     cols.id.forEach((_,i)=>{
       if(cols.parentId[i]!==ref) return;
       let ch=[]; try{ ch = JSON.parse(cols.widgetOptions[i]||"{}").choices||[]; }catch(e){}
       const id = cols.colId[i], lab = cols.label[i];
-      if(id==="Type" && ch.length) TYPES = ch;
+      if(cols.type && cols.type[i]==="Attachments") colsPJ.push(id);
       if(norm(id).startsWith("partenaire") || norm(lab).startsWith("partenaire"))
         candidats.push({id, ch, exact: id==="Partenaires"});
     });
+    COL_CR = colsPJ.includes("Compte_rendu") ? "Compte_rendu" : (colsPJ[0] || null);
     // Colonne des partenaires : « Partenaires » en priorité, sinon la première qui commence par « Partenaire »
     const col = candidats.find(c=>c.exact) || candidats[0];
     if(col){ COL_PART = col.id; if(col.ch.length) PARTENAIRES = col.ch; }
@@ -238,7 +263,7 @@ function rendre(){
     for(let m=0;m<12;m++){
       const s = parMois[m][i];
       h += s
-        ? `<td class="seance" data-id="${s.id}" title="Modifier"><div class="d">${affDate(s.Date)}</div><div class="t">${esc(s.Type||"")}</div></td>`
+        ? `<td class="seance" data-id="${s.id}" title="Modifier"><div class="d">${affDate(s.Date)}</div>${COL_CR && liste(s[COL_CR]).length ? `<div class="t">CR joint</div>` : ""}</td>`
         : `<td class="seance vide" data-mois="${m}" title="Ajouter une séance en ${MOIS[m].toLowerCase()}"><span class="plus">+</span></td>`;
     }
     h += "</tr>";
@@ -265,25 +290,124 @@ function ouvrir(s, mois){
   const iso = s ? versIso(s.Date) : "";
   const debut = `${annee}-${String((s?versDate(s.Date).m:mois)+1).padStart(2,"0")}-01`;
   el("m-date").value = iso || debut;
-  el("m-type").innerHTML = `<option value=""></option>` + TYPES.map(t=>`<option${s&&s.Type===t?" selected":""}>${esc(t)}</option>`).join("");
   const coches = s ? liste(s[COL_PART]) : [];
   el("m-parts").innerHTML = PARTENAIRES.map(p=>
     `<label><input type="checkbox" value="${esc(p)}"${coches.includes(p)?" checked":""}> ${esc(p)}</label>`).join("");
+  pjOrigine = (s && COL_CR) ? liste(s[COL_CR]) : [];
+  pjGardees = pjOrigine.slice(); pjNouvelles = [];
+  el("m-cr").style.display = COL_CR ? "" : "none";
+  afficherPJ();
+  el("m-etat").textContent = "";
   el("m-suppr").style.display = s ? "" : "none";
   el("voile").classList.add("ouvert");
   el("m-date").focus();
 }
-function fermer(){ el("voile").classList.remove("ouvert"); enCours=null; }
+function fermer(sansDemander){
+  if(sauvegardeEnCours) return;   // on ne ferme pas pendant un enregistrement
+  if(!sansDemander && pjNouvelles.length &&
+     !confirm("Des fichiers joints n'ont pas encore été envoyés. Fermer sans enregistrer ?")) return;
+  el("voile").classList.remove("ouvert"); enCours=null; pjNouvelles=[];
+}
+
+/* ---- compte rendu : pièces jointes ----
+   Les fichiers passent par l'API de Grist avec un jeton temporaire fourni par Grist au widget :
+   les règles d'accès du document s'appliquent (un agent ne voit que les fichiers des séances qu'il peut lire). */
+const JETONS = {};
+async function jeton(lecture){
+  const k = lecture ? "lecture" : "ecriture", j = JETONS[k];
+  if(j && Date.now() < j.expire) return j;
+  const t = await grist.docApi.getAccessToken({readOnly: !!lecture});
+  return JETONS[k] = {token: t.token, baseUrl: t.baseUrl, expire: Date.now() + Math.max(0, (t.ttlMsecs||60000) - 30000)};
+}
+const urlPJ = (t, suite) => `${t.baseUrl}/attachments${suite}?auth=${encodeURIComponent(t.token)}`;
+const nomPJ = id => (INFOS_PJ[id] && INFOS_PJ[id].fileName) || ("Pièce jointe n°" + id);
+
+function infosPJ(id){
+  if(!DEMANDES_PJ[id]) DEMANDES_PJ[id] = (async ()=>{
+    const t = await jeton(true);
+    const r = await fetch(urlPJ(t, `/${id}`), {credentials:"omit"});
+    if(!r.ok) throw new Error("erreur " + r.status);
+    return INFOS_PJ[id] = await r.json();
+  })();
+  return DEMANDES_PJ[id];
+}
+function afficherPJ(){
+  if(!pjGardees.length && !pjNouvelles.length){ el("m-pj").innerHTML = `<li class="vide">Aucun fichier joint.</li>`; return; }
+  el("m-pj").innerHTML =
+    pjGardees.map(id=>`<li><span class="nom" title="${esc(nomPJ(id))}">${esc(nomPJ(id))}</span>`
+      + `<button type="button" data-ouvrir-pj="${id}">Télécharger</button>`
+      + `<button type="button" class="danger" data-retirer-pj="${id}" title="Retirer ce fichier">✕</button></li>`).join("")
+    + pjNouvelles.map((f,i)=>`<li class="nouv"><span class="nom" title="${esc(f.name)}">${esc(f.name)}</span>`
+      + `<button type="button" class="danger" data-retirer-nouv="${i}" title="Retirer ce fichier">✕</button></li>`).join("");
+  // Noms des fichiers pas encore connus : demandés à Grist, puis la liste est redessinée
+  pjGardees.filter(id=>!INFOS_PJ[id]).forEach(id=>infosPJ(id).then(()=>{ if(enCours) afficherPJ(); }).catch(()=>{}));
+}
+async function envoyerFichiers(fichiers){
+  const t = await jeton(false);
+  const fd = new FormData();
+  fichiers.forEach(f=>fd.append("upload", f, f.name));
+  const r = await fetch(urlPJ(t, ""), {method:"POST", body:fd, credentials:"omit"});
+  if(!r.ok) throw new Error(`envoi refusé par Grist (erreur ${r.status})`);
+  const ids = await r.json();
+  if(!Array.isArray(ids) || ids.length!==fichiers.length) throw new Error("réponse inattendue de Grist à l'envoi");
+  ids.forEach((id,i)=>{ INFOS_PJ[id] = {fileName: fichiers[i].name}; });
+  return ids;
+}
+async function telechargerPJ(id){
+  try{
+    el("m-etat").textContent = "Téléchargement…";
+    const t = await jeton(true);
+    const r = await fetch(urlPJ(t, `/${id}/download`), {credentials:"omit"});
+    if(!r.ok) throw new Error("erreur " + r.status);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(await r.blob()); a.download = nomPJ(id);
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    el("m-etat").textContent = "";
+  }catch(e){ el("m-etat").textContent = "Téléchargement impossible : " + (e.message||e); }
+}
+function ajouterFichiers(fichiers){
+  const refus = [];
+  for(const f of fichiers){
+    const ext = f.name.includes(".") ? f.name.split(".").pop().toLowerCase() : "";
+    if(!PJ_EXTENSIONS.includes(ext)) refus.push(`${f.name} : type de fichier non accepté`);
+    else if(f.size > PJ_MAX_MO*1024*1024) refus.push(`${f.name} : plus de ${PJ_MAX_MO} Mo`);
+    else pjNouvelles.push(f);
+  }
+  afficherPJ();
+  if(refus.length) alert("Fichier(s) non ajouté(s) :\n" + refus.join("\n"));
+}
 
 async function enregistrer(){
+  if(sauvegardeEnCours || !enCours) return;   // évite le double clic (séance créée deux fois)
   const date = depuisIso(el("m-date").value);
   if(date==null){ alert("Indiquez une date."); return; }
   const rec = {
     Date: date,
-    Type: el("m-type").value || null,
     [COL_PART]: ["L", ...[...el("m-parts").querySelectorAll("input:checked")].map(c=>c.value)],
   };
+  sauvegardeEnCours = true; el("m-ok").disabled = true; el("m-suppr").disabled = true;
   try{
+    if(COL_CR){
+      if(pjNouvelles.length){
+        el("m-etat").textContent = "Envoi des fichiers…";
+        const ids = await envoyerFichiers(pjNouvelles);
+        pjGardees.push(...ids); pjNouvelles = [];   // déjà envoyés : pas renvoyés si on réessaie
+        afficherPJ();
+      }
+      const ajoutees = pjGardees.filter(id=>!pjOrigine.includes(id));
+      const retirees = pjOrigine.filter(id=>!pjGardees.includes(id));
+      if(ajoutees.length || retirees.length){
+        // On repart de la valeur actuelle dans Grist : un collègue a pu joindre un fichier entre-temps
+        let actuelles = [];
+        if(enCours.id){
+          const ligne = lignes(await grist.docApi.fetchTable(TABLE)).find(s=>s.id===enCours.id);
+          actuelles = ligne ? liste(ligne[COL_CR]) : pjOrigine;
+        }
+        rec[COL_CR] = ["L", ...actuelles.filter(id=>!retirees.includes(id)), ...ajoutees.filter(id=>!actuelles.includes(id))];
+      }
+    }
+    el("m-etat").textContent = "Enregistrement…";
     if(enCours.id){
       await grist.docApi.applyUserActions([["UpdateRecord", TABLE, enCours.id, rec]]);
     }else{
@@ -293,12 +417,17 @@ async function enregistrer(){
       await grist.docApi.applyUserActions([["AddRecord", TABLE, null, rec]]);
     }
     const d = versDate(date); if(d) annee = d.a;
-    fermer(); await charger();
-  }catch(e){ alert("Enregistrement impossible : "+(e.message||e)); }
+    sauvegardeEnCours = false; fermer(true); await charger();
+  }catch(e){
+    el("m-etat").textContent = "";
+    alert("Enregistrement impossible : "+(e.message||e));
+  }finally{
+    sauvegardeEnCours = false; el("m-ok").disabled = false; el("m-suppr").disabled = false;
+  }
 }
 async function supprimer(){
   if(!enCours || !enCours.id || !confirm("Supprimer cette séance ?")) return;
-  try{ await grist.docApi.applyUserActions([["RemoveRecord", TABLE, enCours.id]]); fermer(); await charger(); }
+  try{ await grist.docApi.applyUserActions([["RemoveRecord", TABLE, enCours.id]]); fermer(true); await charger(); }
   catch(e){ alert("Suppression impossible : "+(e.message||e)); }
 }
 
@@ -312,11 +441,22 @@ el("prec").onclick = ()=>{ annee--; rendre(); };
 el("suiv").onclick = ()=>{ annee++; rendre(); };
 el("dept").onchange = e=>{ deptChoisi = e.target.value; rendre(); };
 el("imprimer").onclick = ()=>window.print();
-el("m-annuler").onclick = fermer;
+el("m-annuler").onclick = ()=>fermer();
 el("m-ok").onclick = enregistrer;
 el("m-suppr").onclick = supprimer;
 el("voile").addEventListener("click", e=>{ if(e.target.id==="voile") fermer(); });
-document.addEventListener("keydown", e=>{ if(e.key==="Escape") fermer(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && enCours) fermer(); });
+// Pièces jointes du compte rendu
+el("m-fichier").accept = PJ_EXTENSIONS.map(x=>"."+x).join(",");
+el("m-note-pj").textContent = `PDF, Word, LibreOffice, Excel, images — ${PJ_MAX_MO} Mo max par fichier`;
+el("m-joindre").onclick = ()=>el("m-fichier").click();
+el("m-fichier").onchange = e=>{ ajouterFichiers([...e.target.files]); e.target.value = ""; };
+el("m-pj").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b || sauvegardeEnCours) return;
+  if(b.dataset.ouvrirPj) telechargerPJ(Number(b.dataset.ouvrirPj));
+  else if(b.dataset.retirerPj){ pjGardees = pjGardees.filter(id=>id!==Number(b.dataset.retirerPj)); afficherPJ(); }
+  else if(b.dataset.retirerNouv){ pjNouvelles.splice(Number(b.dataset.retirerNouv), 1); afficherPJ(); }
+});
 
 grist.ready({requiredAccess:"full"});
 // Recharge quand la table change (saisie par un collègue, modification dans les données brutes…)
