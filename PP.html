@@ -514,11 +514,13 @@ function capturerControles(){
   });
 }
 function ajouterControle(){
+  capturerControles();   // garde ce qui vient d'être saisi dans les contrôles et entraves déjà affichés
   const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
   CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
   controlesActuels.push(vide); marquerModifie(); rendreControles();
 }
 function ajouterEntrave(){
+  capturerControles();   // garde ce qui vient d'être saisi dans les contrôles et entraves déjà affichés
   const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
   CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
   vide[CONTROLES.natureCol] = CONTROLES.natureEntrave;
