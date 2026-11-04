@@ -398,7 +398,6 @@ function rendre(){
         cSais = catNom("entrave","Saisine"), cRef = catNom("entrave","Refus"), cCont = catNom("entrave","Contrainte");
   const SAIS = typesDe(cSais).filter(t=>norm(t).includes("procureur"));
   h += `<h4>2.2.1 Parmi les saisines judiciaires, détail des articles 40 / transmission de PV au procureur de la République</h4>`
-  const synthese = v => String(v).replace(/\s*\Saisine judiciaire du procureur de la République par article 40 CPP*\)\s*$/i, "");
   const synthese = v => { const s = String(v), r = s.replace(/^Saisine judiciaire du procureur de la République par (?:PV ou par )?article 40 CPP,\s*pour\s+/i, ""); return r === s ? s : r.charAt(0).toUpperCase() + r.slice(1); };
     + grille(barresH("Saisine judiciaire du procureur de la République par article 40 CPP", SAIS.map(synthese), parType(entr, SAIS), {couleur:PALETTE[6]}));
   h += `<h4>2.2.2 Parmi les contraintes administratives sur individu, détails des mesures prises</h4>`
