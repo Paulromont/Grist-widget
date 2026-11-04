@@ -210,10 +210,10 @@ function groupesDomaines(choices){ return [...new Set(choices.map(groupeDomaine)
 function nationalite(v){
   const s = norm(v); if(!s) return null;
   const exact = NATIONALITES.find(n=>norm(n)===s); if(exact) return exact;
-  if(s.includes("double")) return s.includes("non") ? NATIONALITES[3] : NATIONALITES[2];
-  if(s.startsWith("fran") || s==="fr") return NATIONALITES[0];
-  if(s.startsWith("etrang")) return NATIONALITES[1];
-  return "Autre";
+  if(s.includes("-")) return s.includes("fr") ? NATIONALITES[2] : NATIONALITES[3];
+  if(s.startsWith("fran") || s==="fr" || s==="fra") return NATIONALITES[0];
+  if(!s.startsWith("fran") || !s==="fr" || !s==="fra") return NATIONALITES[1];
+  return "Non définis";
 }
 
 /* ---------- dessin ---------- */
@@ -356,11 +356,11 @@ function rendre(){
   h += `<h3>1.5 Nationalité / sexe des objectifs suivis (personnes physiques)</h3>`;
   const NAT = [...NATIONALITES];
   const natV = PP.map(r=>nationalite(r.Nationalite));
-  if(natV.includes("Autre")) NAT.push("Autre");
+  if(natV.includes("Non définis")) NAT.push("Non définis");
   const SEXE = ch("PP.sexe");
   h += grille(
     camembert("Nationalité", NAT, NAT.map(n=>natV.filter(v=>v===n).length),
-      natV.includes("Autre") ? {sous:"« Autre » : nationalité saisie hors des quatre catégories"} : {}),
+      natV.includes("Non définis") ? {sous:"« Non définis » : nationalité saisie hors des quatre catégories"} : {}),
     camembert("Sexe des personnes", SEXE, compter(PP, r=>r.sexe, SEXE)));
 
     h += `<h3>1.6 Répartition des objectifs suivis par domaine d'activité réel</h3>`;
