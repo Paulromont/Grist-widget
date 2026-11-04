@@ -368,9 +368,9 @@ function rendre(){
   const GRP_REEL = groupesDomaines(DOM_REEL);
   const nbParDomaine = GRP_REEL.map(g=>PM.filter(r=>liste(r.Domaine_reel_2).some(v=>groupeDomaine(v)===g)).length);
   const ACTPP = ch("PP.Activite_s_justfiant_le_suivi");
-  h += grille(
+  const sansIntellectuel = v => String(v).replace(/^Intellectuel\s*\((.+)\)\s*$/i, (_, x) => x.charAt(0).toUpperCase() + x.slice(1));  h += grille(
     camembert("Personnes morales par domaine d'activité réel", GRP_REEL, nbParDomaine),
-    barresH("Personnes physiques par activité justifiant le suivi", ACTPP, compter(PP, r=>r.Activite_s_justfiant_le_suivi, ACTPP)));
+    barresH("Personnes physiques par activité justifiant le suivi", ACTPP.map(sansIntellectuel), compter(PP, r=>r.Activite_s_justfiant_le_suivi, ACTPP)));
 
   /* ===== 2 ===== */
   h += `<h2 class="sec">2. Bilan des actions engagées à l'encontre des objectifs suivis</h2>`;
