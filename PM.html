@@ -53,6 +53,13 @@
   /* message d'état sur sa propre ligne, sous les boutons : sa longueur ne fait plus bouger les boutons */
   .barre{flex-wrap:wrap;}
   .barre .etat{order:10; flex-basis:100%; min-height:18px; margin-top:-6px;}
+    /* petits écrans : titre sur sa ligne, boutons plus compacts, « + Nouvelle … » sur 2 lignes au maximum */
+  @media (max-width: 900px){
+    .barre{gap:8px;}
+    .titre-fiche{flex-basis:100%;}
+    .barre button{padding:6px 10px; font-size:13px;}
+    #btnNouvelle{max-width:140px; white-space:normal; line-height:1.25;}
+  }
   .etat.ok{color:var(--vert-txt);} .etat.err{color:#b42318;}
   .controle{border:1px solid var(--bord); border-radius:8px; padding:12px; margin-bottom:12px; background:var(--gris);}
   .controle .grille{background:transparent;}
