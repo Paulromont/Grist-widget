@@ -401,7 +401,7 @@ function rendre(){
   h += `<h4>2.2.1 Parmi les saisines judiciaires, détail des articles 40 / transmission de PV au procureur de la République</h4>`
     + grille(barresH("Saisine judiciaire du procureur de la République par PV ou par article 40 CPP", SAIS.map(synthese), parType(entr, SAIS), {couleur:PALETTE[6]}));
   h += `<h4>2.2.2 Parmi les contraintes administratives sur individu, détails des mesures prises</h4>`
-    + grille(barresH("Détails des mesures prises à l'encontre de personnes physiques", typesDe(cCont), parType(entr, typesDe(cCont)), {couleur:PALETTE[6]}));
+    + grille(barresH("Détails des mesures prises à l'encontre de personnes physiques", CE.map(sansapreciser), (typesDe(cCont), parType(entr, typesDe(cCont)), {couleur:PALETTE[6]}));
 
   /* ===== 3 ===== */
   h += `<h2 class="sec">3. Services mobilisés dans la mise en œuvre des actions de contrôle et d'entrave</h2>`;
