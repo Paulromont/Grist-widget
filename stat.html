@@ -374,7 +374,7 @@ function rendre(){
 
   /* ===== 2 ===== */
   h += `<h2 class="sec">2. Bilan des actions engagées à l'encontre des objectifs suivis</h2>`;
-  h += `<p class="perimetre">Parties 2 à 4 : seules les actions ayant une date de déclenchement (ou de notification pour une entrave)${periode ? " comprise dans la période" : ""} sont comptées.</p>`;
+  h += `<p class="perimetre">Parties 2 et 3 : seules les actions ayant une date de déclenchement (ou de notification pour une entrave)${periode ? " comprise dans la période" : ""} sont comptées.</p>`;
   const NATURES = ch("Controles.Nature_du_controle_entrave").filter(n=>!norm(n).includes("entrave"));
   const sansapreciser = v => String(v).replace(/\s*\((?:à |a )?(?:préciser|preciser|détailler|detailler)[^)]*\)\s*$/i, "");
   const catsDe = motNature => B.CAT.filter(c=>norm(c.Nature).includes(norm(motNature))).map(c=>c.Cathegorie);
