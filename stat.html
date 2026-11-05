@@ -399,7 +399,7 @@ function rendre(){
   const SAIS = typesDe(cSais).filter(t=>norm(t).includes("procureur"));
   const synthese = v => { const s = String(v), r = s.replace(/^Saisine judiciaire du procureur de la République par (?:PV ou par )?article 40 CPP,\s*pour\s+/i, ""); return r === s ? s : r.charAt(0).toUpperCase() + r.slice(1); };
   h += `<h4>2.2.1 Parmi les saisines judiciaires, détail des articles 40 / transmission de PV au procureur de la République</h4>`
-    + grille(barresH("Saisine judiciaire du procureur de la République par article 40 CPP", SAIS.map(synthese), parType(entr, SAIS), {couleur:PALETTE[6]}));
+    + grille(barresH("Saisine judiciaire du procureur de la République par PV ou par article 40 CPP", SAIS.map(synthese), parType(entr, SAIS), {couleur:PALETTE[6]}));
   h += `<h4>2.2.2 Parmi les contraintes administratives sur individu, détails des mesures prises</h4>`
     + grille(barresH("Détails des mesures prises à l'encontre de personnes physiques", typesDe(cCont), parType(entr, typesDe(cCont)), {couleur:PALETTE[6]}));
 
