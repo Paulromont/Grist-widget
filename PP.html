@@ -25,6 +25,13 @@
      background:#FCEBD9; color:#9A4A00; font-size:10.5px; font-weight:600; white-space:nowrap;}
   .champ.manque :is(input:not([type=checkbox]), select, textarea, .multi-tete){border-color:#E8A15C;}
   label{font-size:12px; color:var(--muet);}
+  /* case placée à droite du libellé d'un champ (ex. « Participation de la M2CTI » à côté des services partenaires) */
+  .champ.avec-cote{display:grid; grid-template-columns:1fr auto; column-gap:10px; row-gap:4px; align-items:center;}
+  .champ.avec-cote > *{grid-column:1 / -1;}
+  .champ.avec-cote > label{grid-column:1; grid-row:1;}
+  .champ.avec-cote > .case-cote{grid-column:2; grid-row:1;}
+  .case-cote label{display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--txt); white-space:nowrap;}
+  .case-cote input{width:16px; height:16px; margin:0;}
   /* listes à choix multiples : un menu déroulant pour ajouter, les choix affichés en étiquettes au-dessus */
   .etiquettes{display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;}
   .etiquettes:empty{display:none;}
@@ -169,6 +176,7 @@ const CONTROLES = {
       cats:["Fermeture du lieu et / ou cessation de l'activité s'y déroulant"]},
     {id:"Service_menant",      label:"Service menant", type:"choice"},
     {id:"Service_partenaire_1",label:"Services partenaires (plusieurs choix possibles)", type:"choicelist"},
+    {id:"Participation_M2CTI", label:"Participation de la M2CTI", type:"bool", siColonne:true, dansChamp:"Service_partenaire_1"},   // case à droite des services partenaires, si la colonne existe
     {id:"Motif_ERP",           label:"Motif ERP", type:"bool",
       cats:["Fermeture du lieu et / ou cessation de l'activité s'y déroulant"]},
     {id:"Montant_applicable",  label:"Montant (si applicable)", type:"number",
@@ -257,9 +265,9 @@ function champVide(ch){
   if(zoneDates) return ![...zoneDates.querySelectorAll("input")].some(i=> i.value);
   const saisie = ch.querySelector("input, select, textarea");
   if(saisie && SANS_PASTILLE.some(id=> saisie.id.endsWith("_" + id))) return false;
-  const cases = ch.querySelectorAll("input[type=checkbox]");
+  const cases = [...ch.querySelectorAll("input[type=checkbox]")].filter(x=> !x.closest(".case-cote"));   // la case « à côté » ne compte pas
   if(cases.length === 1) return false;     // case Oui / Non : décochée veut dire « Non », pas « vide »
-  if(cases.length > 1) return !ch.querySelector("input[type=checkbox]:checked");   // menu à cases
+  if(cases.length > 1) return !cases.some(x=> x.checked);   // menu à cases
   const c = ch.querySelector("select, textarea, input");
   if(!c) return false;
   if(c.multiple) return c.selectedOptions.length === 0;    // liste à choix multiples
@@ -490,7 +498,9 @@ function rendreControles(depuisChangement){
       if(c.siColonne && !colonneCtrlExiste(c.id)) continue;
       if(c.id === "Type_controle" && catEstLibre(cat)) continue;
       if(c.id === "Type_libre" && !catEstLibre(cat)) continue;
-      h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""} ${c.type==="choicelist"?"liste":""}"><label>${esc(estEntrave && c.labelEntrave ? c.labelEntrave : c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
+      if(c.dansChamp) continue;          // dessiné dans le champ qui l'accueille (voir casesCote)
+      const cote = casesCote(c, ctrl, idx);
+      h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""} ${c.type==="choicelist"?"liste":""} ${cote?"avec-cote":""}"><label>${esc(estEntrave && c.labelEntrave ? c.labelEntrave : c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}${cote}</div>`;
     }
     h += `</div></div>`;
     if(estEntrave) htmlE += h; else htmlC += h;
@@ -501,6 +511,12 @@ function rendreControles(depuisChangement){
   document.querySelectorAll("[data-sup]").forEach(b=> b.onclick = ()=>{
     capturerControles(); controlesActuels.splice(Number(b.dataset.sup),1); marquerModifie(); rendreControles();
   });
+}
+// Cases à cocher « dansChamp » d'un champ hôte, placées à droite de son libellé (après sa saisie dans la page,
+// pour que la gommette « à compléter » continue de regarder la saisie du champ hôte)
+function casesCote(hote, ctrl, idx){
+  return CONTROLES.champs.filter(x=> x.dansChamp === hote.id && (!x.siColonne || colonneCtrlExiste(x.id)))
+    .map(x=> `<span class="case-cote"><label><input type="checkbox" id="ctrl${idx}_${x.id}" ${ctrl[x.id]?"checked":""}> ${esc(x.label)}</label></span>`).join("");
 }
 function capturerControles(){
   controlesActuels.forEach((ctrl, idx)=>{
@@ -832,6 +848,7 @@ function imprimerFiche(){
       if(c.id==="Categorie" && !nat) continue;
       if(c.id==="Type_controle" && (!cat || catEstLibre(cat))) continue;
       if(c.id==="Type_libre" && !catEstLibre(cat)) continue;
+      if(c.dansChamp && c.type==="bool" && !ctrl[c.id]) continue;   // case non cochée : rien à imprimer
       const v = valeurAffichee(c, ctrl[c.id]);
       if(v!=="") lignes += `<tr><td class="lbl">${esc(estEntraveP && c.labelEntrave ? c.labelEntrave : c.label)}</td><td>${esc(v)}</td></tr>`;
     }
