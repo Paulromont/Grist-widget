@@ -202,7 +202,8 @@ const CONTROLES = {
       cats:["Procédure de contrôle fiscal externe (CFE) ou de contrôle sur pièce (CSP)",
              "Procédure de contrôle des OSBL (à détailler)"]},
     {id:"Commentaires",        label:"Commentaires", type:"textarea", large:true},
-    {id:"Controles_origine",   label:"Contrôle(s) à l'origine de l'entrave", type:"reflistctrl", entraveOnly:true, large:true},
+    {id:"Controles_origine",   label:"Contrôle(s) à l'origine", type:"reflistctrl", entraveOnly:true},
+    {id:"Autres_origines",     label:"Autres origines", type:"text", entraveOnly:true, siColonne:true},   // affiché seulement si la colonne existe dans Controles
   ]
 };
 
@@ -218,6 +219,7 @@ const el = id => document.getElementById(id);
    la colonne texte COL_DATES_CLIR garde TOUTES les dates, une par ligne, au format JJ/MM/AAAA. */
 const COL_DATES_CLIR = "Dates_CLIR";
 function colonneExiste(id){ return !!(choix[TABLE_ENTITE] && id in choix[TABLE_ENTITE]); }
+function colonneCtrlExiste(id){ return !!(choix[CONTROLES.table] && id in choix[CONTROLES.table]); }
 function texteVersDates(t){                    // "12/03/2026\n05/06/2026" -> dates Grist (secondes)
   return String(t||"").split("\n").map(l=>{
     const m = l.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -262,9 +264,9 @@ function majChoixMultiples(){
     const liste = el(menu.dataset.pour); if(!liste) return;
     const zone = menu.parentNode.querySelector(".etiquettes");
     const choisis = [...liste.options].filter(o=> o.selected), libres = [...liste.options].filter(o=> !o.selected);
-    zone.innerHTML = choisis.map(o=>`<span class="etiquette">${esc(o.value)}<button type="button" title="Retirer" data-retirer="${esc(o.value)}">\u2715</button></span>`).join("");
+    zone.innerHTML = choisis.map(o=>`<span class="etiquette">${esc(o.textContent)}<button type="button" title="Retirer" data-retirer="${esc(o.value)}">\u2715</button></span>`).join("");
     menu.innerHTML = `<option value="">${choisis.length ? "+ Ajouter un choix…" : "Choisir…"}</option>`
-                   + libres.map(o=>`<option value="${esc(o.value)}">${esc(o.value)}</option>`).join("");
+                   + libres.map(o=>`<option value="${esc(o.value)}">${esc(o.textContent)}</option>`).join("");
     menu.value = ""; menu.disabled = !libres.length;
   });
 }
@@ -307,7 +309,7 @@ function memeListe(a, b){
   const t = v=> listeVersTab(v).slice().sort().join("\u0001");
   return t(a) === t(b);
 }
-const SANS_PASTILLE = ["Departements_partages", "Commentaire_signalement", "commentaires", "Commentaires", "Controles_origine", "Champs_libre", "Commentaire_identite", "Commentaire_domaine_activite"];
+const SANS_PASTILLE = ["Autres_origines", "Departements_partages", "Commentaire_signalement", "commentaires", "Commentaires", "Controles_origine", "Champs_libre", "Commentaire_identite", "Commentaire_domaine_activite"];
   
 function marquerVides(){
   const actif = ficheDejaEnregistree();
@@ -415,13 +417,16 @@ function champHTML(champ, valeur, prefix, ctrlCat, ctrlNat){
       `</select>`;
   }
   if(champ.type==="reflistctrl"){
-    // liste des contrôles (hors entraves) déjà enregistrés de la même entité
+    // contrôles (hors entraves) déjà enregistrés de la même entité : étiquettes + menu déroulant,
+    // comme les autres listes à choix multiples (la liste cachée est celle lue à l'enregistrement)
     const dispo = controlesActuels.filter(x => x.id && x[CONTROLES.natureCol] !== CONTROLES.natureEntrave);
     const sel = listeVersTab(valeur).map(Number);
-    const opts = dispo.map(x=>`<option ${sel.includes(x.id)?"selected":""} value="${x.id}">${esc(x.Resume||("#"+x.id))}</option>`).join("");
-    return `<select id="${nom}" multiple size="4">${opts}</select>`+
-      (dispo.length ? "" : `<div class="vide" style="padding:4px 0;">Aucun contrôle enregistré à lier (enregistrez d'abord le contrôle).</div>`);
+    const opts = dispo.map(x=>`<option ${sel.includes(x.id)?"selected":""} value="${x.id}">${esc(x.Resume||("Contrôle n°"+x.id))}</option>`).join("");
+    return `<select id="${nom}" multiple style="display:none">${opts}</select>`
+      + `<div class="etiquettes" data-pour="${nom}"></div><select class="ajout-choix" data-pour="${nom}"></select>`
+      + (dispo.length ? "" : `<div class="vide" style="padding:4px 0;">Aucun contrôle enregistré à lier (enregistrez d'abord le contrôle).</div>`);
   }
+
   if(champ.type==="number"){
     return `<input type="number" step="0.01" id="${nom}" value="${valeur!=null?esc(valeur):""}">`;
   }
@@ -525,6 +530,7 @@ function rendreControles(depuisChangement){
       if(c.ctrlOnly && estEntrave) continue;
       if(c.entraveOnly && !estEntrave) continue;
       if(c.cats && !c.cats.includes(cat)) continue;
+      if(c.siColonne && !colonneCtrlExiste(c.id)) continue;
       if(c.id === "Type_controle" && catEstLibre(cat)) continue;
       if(c.id === "Type_libre" && !catEstLibre(cat)) continue;
       h += `<div class="champ ${largeurCtrl(c, estEntrave, cat)?"large":""} ${c.type==="choicelist"?"liste":""}"><label>${esc(estEntrave && c.labelEntrave ? c.labelEntrave : c.label)}</label>${champHTML(c, ctrl[c.id], "ctrl"+idx+"_", cat ,nat)}</div>`;
@@ -865,6 +871,7 @@ function imprimerFiche(){
       if(c.ctrlOnly && estEntraveP) continue;
       if(c.entraveOnly && !estEntraveP) continue;
       if(c.cats && !c.cats.includes(cat)) continue;
+      if(c.siColonne && !colonneCtrlExiste(c.id)) continue;
       if(c.id==="Categorie" && !nat) continue;
       if(c.id==="Type_controle" && (!cat || catEstLibre(cat))) continue;
       if(c.id==="Type_libre" && !catEstLibre(cat)) continue;
