@@ -25,6 +25,7 @@
      background:#FCEBD9; color:#9A4A00; font-size:10.5px; font-weight:600; white-space:nowrap;}
   .champ.manque :is(input:not([type=checkbox]), select, textarea, .multi-tete){border-color:#E8A15C;}
   label{font-size:12px; color:var(--muet);}
+  #contenu.occupe{opacity:.6; pointer-events:none;}   /* enregistrement avant un ajout de contrôle ou d'entrave */
   /* case placée à droite du libellé d'un champ (ex. « Participation de la M2CTI » à côté des services partenaires) */
   .champ.avec-cote{display:grid; grid-template-columns:1fr auto; column-gap:10px; row-gap:4px; align-items:center;}
   .champ.avec-cote > *{grid-column:1 / -1;}
@@ -578,19 +579,33 @@ function capturerControles(){
     }
   });
 }
-function ajouterControle(){
-  capturerControles();   // garde ce qui vient d'être saisi dans les contrôles et entraves déjà affichés
-  const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
-  CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
-  controlesActuels.push(vide); marquerModifie(); rendreControles();
+// « + Ajouter un contrôle / une entrave » : si la fiche a des modifications, elle est d'abord enregistrée.
+// Les contrôles déjà saisis reçoivent ainsi leur numéro et apparaissent tout de suite dans
+// « Contrôle(s) à l'origine » des entraves. Si l'enregistrement échoue, rien n'est ajouté ni perdu
+// (le message sous les boutons explique quoi faire).
+let ajoutEnCours = false;
+async function ajouterAction(estEntrave){
+  if(ajoutEnCours || !recordActuel) return;
+  ajoutEnCours = true;
+  if(document.activeElement) document.activeElement.blur();
+  el("contenu").classList.add("occupe");
+  try{
+    capturerControles();   // garde ce qui vient d'être saisi dans les contrôles et entraves déjà affichés
+    if(modifie && !(await enregistrer(false))) return;
+    const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
+    CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
+    if(estEntrave) vide[CONTROLES.natureCol] = CONTROLES.natureEntrave;
+    // pas marquée « modifiée » : tant qu'elle reste vide, il n'y a rien à enregistrer
+    controlesActuels.push(vide); rendreControles();
+    const zone = el(estEntrave ? "zoneEntrave" : "zoneCtrl");
+    const blocs = zone ? zone.querySelectorAll(".controle") : [];
+    if(blocs.length) blocs[blocs.length-1].scrollIntoView({block:"center", behavior:"smooth"});
+  } finally {
+    ajoutEnCours = false; el("contenu").classList.remove("occupe");
+  }
 }
-function ajouterEntrave(){
-  capturerControles();   // garde ce qui vient d'être saisi dans les contrôles et entraves déjà affichés
-  const vide = {id:null, [CONTROLES.refCol]:recordActuel.id};
-  CONTROLES.champs.forEach(c=> vide[c.id] = c.type==="choicelist"?["L"]:null);
-  vide[CONTROLES.natureCol] = CONTROLES.natureEntrave;
-  controlesActuels.push(vide); marquerModifie(); rendreControles();
-}
+function ajouterControle(){ return ajouterAction(false); }
+function ajouterEntrave(){ return ajouterAction(true); }
 let chargement = false;     // pendant l'affichage d'une fiche, les événements du navigateur ne comptent pas comme des saisies
 function marquerModifie(){ if(chargement) return; modifie=true; versionSaisie++; el("btnEnregistrer").disabled=false; el("btnEnregistrer").classList.add("a-enregistrer"); el("btnAnnuler").disabled=false; etatMsg("Modifications non enregistrées"); planifierBrouillon(); }
 /* ---------- Enregistrement : tout ou rien, automatique au changement de fiche, copie de secours ---------- */
@@ -648,6 +663,13 @@ function differences(valeurs, reference){      // seulement les champs qui ont c
   return d;
 }
 
+// Nouveau contrôle (ou nouvelle entrave) resté entièrement vide : il n'est pas enregistré.
+// Le lien vers la fiche et la Nature imposée d'une entrave ne comptent pas comme une saisie.
+function controleVide(v){
+  return Object.keys(v).every(k=> k === CONTROLES.refCol
+    || (k === CONTROLES.natureCol && v[k] === CONTROLES.natureEntrave)
+    || valeurVide(v[k]) || v[k] === 0);
+}
 async function actionsEnregistrement(){
   let tableFiche = TABLE_ENTITE;
   try{ tableFiche = (await grist.selectedTable.getTableId()) || TABLE_ENTITE; }catch(e){}
@@ -656,7 +678,7 @@ async function actionsEnregistrement(){
   if(Object.keys(champsFiche).length) actions.push(["UpdateRecord", tableFiche, recordActuel.id, champsFiche]);
   controlesActuels.forEach((ctrl, idx)=>{
     const v = valeursControle(ctrl, idx);
-    if(!ctrl.id){ actions.push(["AddRecord", CONTROLES.table, null, v]); return; }
+    if(!ctrl.id){ if(!controleVide(v)) actions.push(["AddRecord", CONTROLES.table, null, v]); return; }
     const d = differences(v, base.ctrls[ctrl.id]);
     if(Object.keys(d).length) actions.push(["UpdateRecord", CONTROLES.table, ctrl.id, d]);
   });
