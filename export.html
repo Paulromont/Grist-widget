@@ -179,10 +179,12 @@ const ACTION_TOUS = [
   {id:"Motif_ERP",label:"Motif ERP",type:"bool"},
   {id:"Service_menant",label:"Service menant",type:"text"},
   {id:"Service_partenaire_1",label:"Service(s) partenaire(s)",type:"list"},
+  {id:"Participation_M2CTI",label:"Participation de la M2CTI",type:"bool"},
   {id:"Montant_notifie",label:"Montant notifié (€)",type:"num"},
   {id:"Montant_recouvre",label:"Montant recouvré (€)",type:"num"},
   {id:"Montant_applicable",label:"Montant applicable (€)",type:"num"},
   {id:"Controles_origine",label:"Contrôle(s) à l'origine",type:"reflist"},
+  {id:"Autres_origines",label:"Autres origines",type:"text"},
   {id:"Commentaires",label:"Commentair(s)",type:"text"},
 ];
 // Personnes liées (table Personnes_liees) : sous-champs repris dans la cellule, par type de personne
@@ -249,7 +251,8 @@ function dateAction(a){
 // ex. « • Type : Fermeture administrative — Date de déclenchement : 12/03/2026 — Service menant : Préfecture »
 function fmtActions(acts, ACTION, ctx){
   return acts.map(a=>{
-    const morceaux = ACTION.map(c=>{ const v = fmt(a[c.id], c.type, ctx); return v==="" ? "" : c.label+" : "+v; }).filter(Boolean);
+    const morceaux = ACTION.map(c=>{ const v = fmt(a[c.id], c.type, ctx);
+      return (v==="" || (c.type==="bool" && v==="Non")) ? "" : c.label+" : "+v; }).filter(Boolean);   // « Non » : rien à écrire
     return "• " + morceaux.join(" — ");
   }).join("\n");
 }
@@ -558,9 +561,9 @@ function caseHtml(groupe, id, label, coche){
 
 // Colonnes cochées à l'ouverture du panneau (toujours les mêmes)
 const DEFAUT = {
-  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Champs_libre","Autres_adresses","Date_creation","Numero_RNA","Numero_SIRET","Activite_presentiel_ligne","Date_signalement","Service_signalant","Contenu_signalement","Commentaire_signalement","Dirigeants","Personnels_benevoles","_liees_Physique","_liees_Morale","Departement"],
-  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Champs_libre","Nationalite","Departement","Ville","Date_signalement","Service_signalant","Contenu_signalement","_liees_Physique","_liees_Morale"],
-  ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine","Duree_jours","Motif_ERP","Montant_notifie","Montant_recouvre","Montant_applicable","Commentaires"]
+  PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Champs_libre","Autres_adresses","Date_creation","Numero_RNA","Numero_SIRET","Activite_presentiel_ligne","Date_signalement","Service_signalant","Contenu_signalement","Commentaire_signalement","Dirigeants","Personnels_benevoles","_liees_Physique","_liees_Morale","Departement","Departements_partages","Commentaire_identite","Commentaire_domaine_activite"],
+  PP:  ["Dates_de_passage_en_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","sexe","Activite_s_justfiant_le_suivi","commentaires","Champs_libre","Nationalite","Departement","Ville","Date_signalement","Service_signalant","Contenu_signalement","_liees_Physique","_liees_Morale","Commentaire_identite"],
+  ACT: ["Nature_du_controle_entrave","Categorie","Type_controle","Type_libre","Date_declenchement","Date_cloture","Date_notification","Service_menant","Service_partenaire_1","Controles_origine","Duree_jours","Motif_ERP","Montant_notifie","Montant_recouvre","Montant_applicable","Commentaires","Participation_M2CTI","Autres_origines"]
 };
   const ALEGE = {
   PM:  ["Dates_passage_CLIR","_dates_CLIR","Etat_du_dossier","Affiliation","Mouvance","Pseudonyme","Objectif","Ville","Statut_juridique","Domaine_declare_1","Domaine_reel_2","Champs_libre"],
