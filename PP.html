@@ -841,7 +841,7 @@ function valeurAffichee(champ, valeur){
 }
 function imprimerFiche(){
   if(!recordActuel){ return; }
-  const titre = "Fiche : " + (recordActuel.Pseudonyme || recordActuel.Mouvance || ("#"+recordActuel.id));
+  const titre = titreFiche(recordActuel);
   let corps = "";
   for(const sec of SECTIONS){
     let bloc = "", lignes = "";
@@ -1029,9 +1029,11 @@ el("btnNouvelle").onclick = nouvelleFiche;
 el("btnSupprimer").onclick = supprimerFiche;
 // Supprime la fiche ET ce qui lui est rattaché (contrôles/entraves, personnes liées),
 // sinon ces lignes resteraient orphelines dans leurs tables.
+// Titre affiché : « Fiche : pseudonyme » (ou mouvance), « Nouvelle fiche » tant qu'aucun des deux n'est saisi
+function titreFiche(r){ const nom = r.Pseudonyme || r.Mouvance; return nom ? "Fiche : " + nom : "Nouvelle fiche"; }
 async function supprimerFiche(){
   if(!recordActuel) return;
-  const nom = recordActuel.Pseudonyme || ("#"+recordActuel.id);
+  const nom = recordActuel.Pseudonyme || "nouvelle fiche";
   const idsCtrl  = (window._ctrlOrigIds||[]).filter(Boolean);
   const idsLiees = (window._lieesOrigIds||[]).filter(Boolean);
   const msg = `Supprimer définitivement la fiche PP « ${nom} » ?\n\n` +
@@ -1095,7 +1097,7 @@ async function chargerFiche(rec){
 }
 async function chargerFicheSansGarde(rec){
   const debut = performance.now();
-  el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
+  el("titre").textContent = titreFiche(rec);
   etatMsg("Chargement\u2026");
   // les trois lectures partent EN MÊME TEMPS : on attend un seul aller-retour avec le serveur au lieu de trois
   const [brut] = await Promise.all([
@@ -1105,7 +1107,7 @@ async function chargerFicheSansGarde(rec){
   ]);
   if(brut) rec = Object.assign({}, rec, brut);
   recordActuel = rec;
-  el("titre").textContent = "Fiche : " + (rec.Pseudonyme || rec.Mouvance || ("#"+rec.id));
+  el("titre").textContent = titreFiche(rec);
   window._ctrlOrigIds = controlesActuels.map(c=>c.id);
   window._lieesOrigIds = lieesActuelles.map(p=>p.id);
   console.info("[Fiche] chargée en", Math.round(performance.now() - debut), "ms");
