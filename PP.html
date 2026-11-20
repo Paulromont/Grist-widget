@@ -6,15 +6,21 @@
 <title>Fiche entité — widget Grist</title>
 <script src="https://grist.numerique.gouv.fr/grist-plugin-api.js"></script>
 <style>
+  /* Police Marianne (Système de design de l'État) : fichiers dans le dossier fonts/ à côté du widget */
+  @font-face{font-family:"Marianne"; src:url("fonts/Marianne-Regular.woff2") format("woff2"); font-weight:400; font-style:normal; font-display:swap;}
+  @font-face{font-family:"Marianne"; src:url("fonts/Marianne-Regular_Italic.woff2") format("woff2"); font-weight:400; font-style:italic; font-display:swap;}
+  @font-face{font-family:"Marianne"; src:url("fonts/Marianne-Medium.woff2") format("woff2"); font-weight:500; font-style:normal; font-display:swap;}
+  @font-face{font-family:"Marianne"; src:url("fonts/Marianne-Bold.woff2") format("woff2"); font-weight:700; font-style:normal; font-display:swap;}
   :root{
-    --bleu:#C9191E; --bleu-clair:#FDDFDF; --fond:#FEE9E9;
+    --bleu:#C9191E; --bleu-clair:#FDDFDF; --fond:#FEF4F4;
     --orange:#FAEEDA; --orange-txt:#854F0B;
     --vert:#EAF3DE; --vert-txt:#3B6D11;
     --gris:#FEF4F4; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
-    --police-titres:Verdana, "Segoe UI", Tahoma, sans-serif;
+    --police:Marianne, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --police-titres:Marianne, Verdana, "Segoe UI", Tahoma, sans-serif;
   }
   *{box-sizing:border-box;}
-  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  body{font-family:var(--police);
        color:var(--txt); margin:0; padding:16px; background:var(--fond); font-size:14px;}
   h2.section{font-family:var(--police-titres); font-size:15px; font-weight:700; letter-spacing:.2px; color:#fff; background:var(--bleu);
              padding:6px 12px; border-radius:6px; margin:22px 0 12px;}
