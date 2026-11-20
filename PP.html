@@ -1118,6 +1118,18 @@ async function chargerFicheSansGarde(rec){
   proposerBrouillon();
 }
 grist.ready({ requiredAccess:"full" });
+// Réglage d'affichage personnel : colonne Couleur_police de la table Utilisateurs.
+// La colonne Moi n'est lisible que sur sa propre ligne (règle de colonne) : propriétaires compris.
+(async function appliquerReglagePerso(){
+  try{
+    const t = await grist.docApi.fetchTable("Utilisateurs");
+    if(!t.Moi || !t.Couleur_police) return;
+    const i = t.Moi.findIndex(v => v === true);
+    if(i < 0) return;
+    const c = String(t.Couleur_police[i] || "").trim();
+    if(/^#[0-9a-f]{3,8}$|^[a-z]+$/i.test(c)) document.documentElement.style.setProperty("--txt", c);
+  }catch(e){ /* table ou colonne absente : affichage normal */ }
+})();
 Promise.all([chargerChoix(), chargerTypes(), chargerCategories()]).then(()=>{
   purgerBrouillons();
   grist.onRecord(surNouvelleFiche);
