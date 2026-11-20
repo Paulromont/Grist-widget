@@ -7,10 +7,10 @@
 <script src="https://grist.numerique.gouv.fr/grist-plugin-api.js"></script>
 <style>
   :root{
-    --bleu:#6B2D6B; --bleu-clair:#F3E8F3;
+    --bleu:#C9191E; --bleu-clair:#FEF4F4;
     --orange:#FAEEDA; --orange-txt:#854F0B;
     --vert:#EAF3DE; --vert-txt:#3B6D11;
-    --gris:#F4F5F7; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
+    --gris:#F6F6F6; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
     --police-titres:Verdana, "Segoe UI", Tahoma, sans-serif;
   }
   *{box-sizing:border-box;}
@@ -54,7 +54,7 @@
   .brouillon{background:#FCEBD9; color:#7A3A00; border:1px solid #E8A15C; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:13px;}
   .brouillon button{margin:0 0 0 6px;}
   button{font:inherit; cursor:pointer; border:none; border-radius:6px; padding:8px 16px;
-     background:var(--bleu); color:#fff; font-weight:500;}
+     background:#000091; color:#fff; font-weight:500;}
   button.sec{background:var(--gris); color:var(--txt); border:1px solid var(--bord);}
   button:disabled{opacity:.5; cursor:default;}
   button.danger{background:#fff; color:#b42318; border:1px solid #f1b8b2;}
@@ -883,14 +883,14 @@ function imprimerFiche(){
     <style>
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       body{font-family:Arial,sans-serif; color:#222; margin:24px; font-size:12px;}
-      h1{font-size:18px; color:#6B2D6B; border-bottom:2px solid #6B2D6B; padding-bottom:4px;}
-      h2{font-size:13px; color:#fff; background:#6B2D6B; padding:4px 8px; margin:16px 0 6px; border-radius:3px;}
-      h3{font-size:12px; margin:12px 0 4px; color:#6B2D6B;}
+      h1{font-size:18px; color:#C9191E; border-bottom:2px solid #C9191E; padding-bottom:4px;}
+      h2{font-size:13px; color:#fff; background:#C9191E; padding:4px 8px; margin:16px 0 6px; border-radius:3px;}
+      h3{font-size:12px; margin:12px 0 4px; color:#C9191E;}
       table.ch{width:100%; border-collapse:collapse; margin-bottom:8px;}
       table.ch td{border:0.5px solid #ccc; padding:4px 6px; vertical-align:top; white-space:pre-line;}
       td.lbl{width:32%; color:#555; background:#f4f5f7;}
       table.lie{width:100%; border-collapse:collapse; margin-bottom:8px;}
-      table.lie th{background:#F3E8F3; color:#6B2D6B; text-align:left; font-weight:600; border:0.5px solid #ccc; padding:4px 6px;}
+      table.lie th{background:#FDDFDF; color:#C9191E; text-align:left; font-weight:600; border:0.5px solid #ccc; padding:4px 6px;}
       table.lie td{border:0.5px solid #ccc; padding:4px 6px;}
       p.dep{font-size:13px; color:#555; margin:-6px 0 10px;}
       @media print{ body{margin:0;} }
