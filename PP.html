@@ -7,15 +7,15 @@
 <script src="https://grist.numerique.gouv.fr/grist-plugin-api.js"></script>
 <style>
   :root{
-    --bleu:#C9191E; --bleu-clair:#FEF4F4;
+    --bleu:#C9191E; --bleu-clair:#FDDFDF; --fond:#FEE9E9;
     --orange:#FAEEDA; --orange-txt:#854F0B;
     --vert:#EAF3DE; --vert-txt:#3B6D11;
-    --gris:#F6F6F6; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
+    --gris:#FEF4F4; --bord:#D8DCE1; --txt:#2E2E2E; --muet:#6B7280;
     --police-titres:Verdana, "Segoe UI", Tahoma, sans-serif;
   }
   *{box-sizing:border-box;}
   body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-       color:var(--txt); margin:0; padding:16px; background:#fff; font-size:14px;}
+       color:var(--txt); margin:0; padding:16px; background:var(--fond); font-size:14px;}
   h2.section{font-family:var(--police-titres); font-size:15px; font-weight:700; letter-spacing:.2px; color:#fff; background:var(--bleu);
              padding:6px 12px; border-radius:6px; margin:22px 0 12px;}
   .grille{display:grid; grid-template-columns:1fr 1fr; gap:12px 17px;}
@@ -46,7 +46,7 @@
      border-radius:6px; background:#fff; color:var(--txt); width:100%;}
   textarea{min-height:60px; resize:vertical;}
   select[multiple]{min-height:96px;}
-  .barre{position:sticky; top:0; z-index:5; background:#fff; padding:8px 0 12px;
+  .barre{position:sticky; top:0; z-index:5; background:var(--fond); padding:8px 0 12px;
      border-bottom:1px solid var(--bord); display:flex; align-items:center; gap:12px;}
   .titre-fiche{font-family:var(--police-titres); font-size:18px; font-weight:700; flex:1;}
   /* enregistrement : bouton orange tant que des modifications ne sont pas enregistrées ; bandeau de copie de secours */
@@ -63,7 +63,7 @@
   .barre{flex-wrap:wrap;}
   .barre .etat{order:10; flex-basis:100%; min-height:18px; margin-top:-6px;}
   .etat.ok{color:var(--vert-txt);} .etat.err{color:#b42318;}
-  .controle{border:1px solid var(--bord); border-radius:8px; padding:12px; margin-bottom:12px; background:var(--gris);}
+  .controle{border:1px solid var(--bord); border-radius:8px; padding:12px; margin-bottom:12px; background:#fff;}
   .controle .grille{background:transparent;}
   .ctrl-tete{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
   .ctrl-tete b{font-size:13px;}
